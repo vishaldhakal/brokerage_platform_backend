@@ -79,7 +79,10 @@ class Document(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.project.project_name} - {self.title}"
+        return f"{self.title}"
+    
+    class Meta:
+        ordering = ['-created_at']
 
 class FAQ(models.Model):
     question = models.CharField(max_length=200)
@@ -88,19 +91,6 @@ class FAQ(models.Model):
     def __str__(self):
         return self.question
 
-class Community(SlugMixin, models.Model):
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, blank=True)
-    city = models.ForeignKey(City, on_delete=models.CASCADE)
-    images = models.ManyToManyField(Image, blank=True)
-    community_title = models.CharField(max_length=200)
-    address = models.CharField(max_length=200)
-    community_description = models.TextField(blank=True)
-    incentive_description = models.TextField(blank=True)
-    faqs = models.ManyToManyField(FAQ, blank=True)
-
-    def __str__(self):
-        return self.name
     
 class Project(SlugMixin, models.Model):
     PROJECT_TYPE_CHOICES = [
@@ -121,7 +111,6 @@ class Project(SlugMixin, models.Model):
     ]
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
-    community = models.ForeignKey(Community, on_delete=models.CASCADE)
     project_type = models.CharField(max_length=100, choices=PROJECT_TYPE_CHOICES,default='Single Family')
     status = models.CharField(max_length=100, choices=STATUS_CHOICES,default='Planning')
     project_address = models.CharField(max_length=200)
@@ -137,6 +126,7 @@ class Project(SlugMixin, models.Model):
     documents = models.ManyToManyField(Document, blank=True)
     bedrooms = models.IntegerField(blank=True, null=True)
     bathrooms = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
         return self.name

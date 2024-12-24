@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Community, Project, Testimonial
+    FAQ, Project, Testimonial
 )
 
 class ImageSerializer(serializers.ModelSerializer):
@@ -41,60 +41,8 @@ class BuilderDetailsSerializer(serializers.ModelSerializer):
         model = BuilderDetails
         fields = '__all__'
 
-class CommunitySerializer(serializers.ModelSerializer):
-    city_name = serializers.CharField(source='city.name', read_only=True)
-    images = ImageSerializer(many=True, read_only=True)
-    faqs = FAQSerializer(many=True, read_only=True)
-    uploaded_images = serializers.ListField(
-        child=serializers.FileField(max_length=1000000, allow_empty_file=False, use_url=False),
-        write_only=True,
-        required=False
-    )
-
-    class Meta:
-        model = Community
-        fields = [
-            'id', 'name', 'slug', 'city', 'city_name', 'images', 
-            'community_title', 'address', 'community_description',
-            'incentive_description', 'faqs', 'uploaded_images'
-        ]
-        extra_kwargs = {
-            'slug': {'read_only': True},
-        }
-
-    def create(self, validated_data):
-        uploaded_images = validated_data.pop('uploaded_images', [])
-        
-        community = Community.objects.create(**validated_data)
-        
-        for image_file in uploaded_images:
-            image = Image.objects.create(image=image_file)
-            community.images.add(image)
-            
-        return community
-
-    def update(self, instance, validated_data):
-        uploaded_images = validated_data.pop('uploaded_images', [])
-        
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        
-        for image_file in uploaded_images:
-            image = Image.objects.create(image=image_file)
-            instance.images.add(image)
-            
-        return instance
-
-    def validate(self, data):
-        if 'name' in data and len(data['name'].strip()) < 3:
-            raise serializers.ValidationError({
-                'name': 'Community name must be at least 3 characters long'
-            })
-        return data
 
 class ProjectSerializer(serializers.ModelSerializer):
-    community_name = serializers.CharField(source='community.name', read_only=True)
     images = ImageSerializer(many=True, read_only=True)
     plans = PlanSerializer(many=True, read_only=True)
     documents = DocumentSerializer(many=True, read_only=True)
@@ -116,6 +64,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
+    city = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
 
     class Meta:
         model = Project
@@ -166,7 +115,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Handle documents
         for doc_file in uploaded_documents:
             document = Document.objects.create(
-                file=doc_file,
+                document=doc_file,
                 title=getattr(doc_file, 'name', 'Unnamed Document')
             )
             project.documents.add(document)

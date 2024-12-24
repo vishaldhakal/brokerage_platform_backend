@@ -11,9 +11,6 @@ urlpatterns = [
     path('builder-details/', views.BuilderDetailsListCreateView.as_view(), name='builder-details-list'),
     path('builder-details/<slug:slug>/', views.BuilderDetailsDetailView.as_view(), name='builder-details-detail'),
     
-    path('communities/', views.CommunityListCreateView.as_view(), name='community-list'),
-    path('communities/<slug:slug>/', views.CommunityDetailView.as_view(), name='community-detail'),
-    
     path('projects/', views.ProjectListCreateView.as_view(), name='project-list'),
     path('projects/<slug:slug>/', views.ProjectDetailView.as_view(), name='project-detail'),
     

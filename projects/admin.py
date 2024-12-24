@@ -4,7 +4,7 @@ from tinymce.widgets import TinyMCE
 from django.db import models
 from .models import (
     BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Community, Project, Testimonial
+    FAQ, Project, Testimonial
 )
 
 @admin.register(BuilderDetails)
@@ -26,20 +26,11 @@ class CityAdmin(ModelAdmin):
     list_filter = ['state']
     search_fields = ['name']
 
-@admin.register(Community)
-class CommunityAdmin(ModelAdmin):
-    list_display = ['name', 'city', 'community_title']
-    list_filter = ['city']
-    search_fields = ['name', 'community_title']
-    filter_horizontal = ['images', 'faqs']
-    formfield_overrides = {
-        models.TextField: {'widget': TinyMCE()},
-    }
 
 @admin.register(Project)
 class ProjectAdmin(ModelAdmin):
-    list_display = ['name', 'community', 'project_type', 'status']
-    list_filter = ['project_type', 'status', 'community']
+    list_display = ['name', 'project_type', 'status']
+    list_filter = ['project_type', 'status']
     search_fields = ['name', 'project_address']
     filter_horizontal = ['plans', 'images', 'documents']
     formfield_overrides = {

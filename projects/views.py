@@ -4,12 +4,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.parsers import MultiPartParser, FormParser
 from .models import (
     BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Community, Project, Testimonial
+    FAQ, Project, Testimonial
 )
 from .serializers import (
     BuilderDetailsSerializer, StateSerializer, CitySerializer,
     ImageSerializer, PlanSerializer, DocumentSerializer,
-    FAQSerializer, CommunitySerializer, ProjectSerializer,
+    FAQSerializer, ProjectSerializer,
     TestimonialSerializer
 )
 import json
@@ -51,88 +51,24 @@ class BuilderDetailsDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BuilderDetailsSerializer
     lookup_field = 'slug'
 
-class CommunityListCreateView(generics.ListCreateAPIView):
-    queryset = Community.objects.all()
-    serializer_class = CommunitySerializer
-    parser_classes = (MultiPartParser, FormParser)
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
-    search_fields = ['name', 'city__name', 'community_title']
-    filterset_fields = ['city']
-
-    def perform_create(self, serializer):
-        try:
-            # Get FAQs data
-            faqs_data = self.request.data.get('faqs', '[]')
-            
-            # Parse FAQs data safely
-            if isinstance(faqs_data, str):
-                try:
-                    faqs_data = json.loads(faqs_data)
-                except json.JSONDecodeError:
-                    faqs_data = []
-            
-            # Create community instance
-            instance = serializer.save()
-            
-            # Handle FAQs
-            for faq_data in faqs_data:
-                if isinstance(faq_data, dict):
-                    faq = FAQ.objects.create(
-                        question=faq_data.get('question', ''),
-                        answer=faq_data.get('answer', '')
-                    )
-                    instance.faqs.add(faq)
-            
-            return instance
-            
-        except Exception as e:
-            # Log the error and re-raise
-            print(f"Error creating community: {str(e)}")
-            raise
-
-class CommunityDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Community.objects.all()
-    serializer_class = CommunitySerializer
-    parser_classes = (MultiPartParser, FormParser)
-    lookup_field = 'slug'
-
-    def perform_update(self, serializer):
-        try:
-            # Get FAQs data
-            faqs_data = self.request.data.get('faqs', '[]')
-            if isinstance(faqs_data, str):
-                try:
-                    faqs_data = json.loads(faqs_data)
-                except json.JSONDecodeError:
-                    faqs_data = []
-
-            # Update community instance
-            instance = serializer.save()
-
-            # Handle FAQs - clear existing and add new ones
-            if faqs_data:
-                instance.faqs.clear()
-                for faq_data in faqs_data:
-                    if isinstance(faq_data, dict):
-                        faq = FAQ.objects.create(
-                            question=faq_data.get('question', ''),
-                            answer=faq_data.get('answer', '')
-                        )
-                        instance.faqs.add(faq)
-
-            return instance
-
-        except Exception as e:
-            print(f"Error updating community: {str(e)}")
-            raise
 
 class ProjectListCreateView(generics.ListCreateAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     parser_classes = (MultiPartParser, FormParser)
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
-    search_fields = ['name', 'community__name', 'project_type']
-    filterset_fields = ['project_type', 'status', 'community']
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ['name', 'project_type', 'project_address', 'city__name']
+    filterset_fields = {
+        'project_type': ['exact'],
+        'status': ['exact'],
+        'city': ['exact'],
+        'price_starting_from': ['gte', 'lte'],
+        'price_ending_at': ['gte', 'lte'],
+        'bedrooms': ['exact', 'gte', 'lte'],
+        'bathrooms': ['exact', 'gte', 'lte'],
+        'garage_spaces': ['exact', 'gte', 'lte'],
+    }
+    ordering_fields = ['price_starting_from', 'price_ending_at', 'name', 'created_at']
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()

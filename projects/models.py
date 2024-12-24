@@ -34,6 +34,18 @@ class BuilderDetails(SlugMixin, models.Model):
     def __str__(self):
         return self.name
 
+class Developer(SlugMixin, models.Model):
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True, blank=True)
+    email = models.EmailField()
+    phone = models.CharField(max_length=20)
+    website = models.URLField(blank=True)
+    details = models.TextField(blank=True)
+    logo = models.FileField(upload_to='developer_logos/', blank=True)
+
+    def __str__(self):
+        return self.name
+
 class State(SlugMixin, models.Model):
     name = models.CharField(max_length=100)
     abbreviation = models.CharField(max_length=2)
@@ -127,6 +139,7 @@ class Project(SlugMixin, models.Model):
     bedrooms = models.IntegerField(blank=True, null=True)
     bathrooms = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     city = models.ForeignKey(City, on_delete=models.CASCADE, blank=True, null=True)
+    developer = models.ForeignKey(Developer, on_delete=models.SET_NULL, blank=True, null=True)
 
     def __str__(self):
         return self.name

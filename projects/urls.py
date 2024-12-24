@@ -25,4 +25,7 @@ urlpatterns = [
     
     path('testimonials/', views.TestimonialListCreateView.as_view(), name='testimonial-list'),
     path('testimonials/<int:pk>/', views.TestimonialDetailView.as_view(), name='testimonial-detail'),
+
+    path('developers/', views.DeveloperListCreateView.as_view(), name='developer-list'),
+    path('developers/<slug:slug>/', views.DeveloperDetailView.as_view(), name='developer-detail'),
 ]

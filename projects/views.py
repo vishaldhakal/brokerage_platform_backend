@@ -4,13 +4,13 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.parsers import MultiPartParser, FormParser
 from .models import (
     BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Project, Testimonial
+    FAQ, Project, Testimonial, Developer
 )
 from .serializers import (
     BuilderDetailsSerializer, StateSerializer, CitySerializer,
     ImageSerializer, PlanSerializer, DocumentSerializer,
     FAQSerializer, ProjectSerializer,
-    TestimonialSerializer
+    TestimonialSerializer, DeveloperSerializer
 )
 import json
 
@@ -51,6 +51,18 @@ class BuilderDetailsDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BuilderDetailsSerializer
     lookup_field = 'slug'
 
+class DeveloperListCreateView(generics.ListCreateAPIView):
+    queryset = Developer.objects.all()
+    serializer_class = DeveloperSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'email']
+
+class DeveloperDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Developer.objects.all()
+    serializer_class = DeveloperSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    lookup_field = 'slug'
 
 class ProjectListCreateView(generics.ListCreateAPIView):
     queryset = Project.objects.all()

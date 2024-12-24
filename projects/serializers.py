@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Project, Testimonial
+    FAQ, Project, Testimonial, Developer
 )
 
 class ImageSerializer(serializers.ModelSerializer):
@@ -41,6 +41,13 @@ class BuilderDetailsSerializer(serializers.ModelSerializer):
         model = BuilderDetails
         fields = '__all__'
 
+class DeveloperSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Developer
+        fields = '__all__'
+        extra_kwargs = {
+            'slug': {'read_only': True},
+        }
 
 class ProjectSerializer(serializers.ModelSerializer):
     images = ImageSerializer(many=True, read_only=True)
@@ -65,6 +72,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         allow_empty=True
     )
     city = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
+    developer = DeveloperSerializer(read_only=True)
+    developer_id = serializers.PrimaryKeyRelatedField(
+        queryset=Developer.objects.all(),
+        source='developer',
+        write_only=True,
+        required=False,
+        allow_null=True
+    )
 
     class Meta:
         model = Project

@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-4bveq96j^mo$q)2u07g5=f2d1b_f5!+#+st(hlbn&t79bjoa3(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -83,12 +83,26 @@ WSGI_APPLICATION = 'platformb.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
+""" DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+ """
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql_psycopg2",
+        "NAME": "brokerage",
+        "USER": "vishal",
+        "PASSWORD": "DatabaseUserPassword",
+        "HOST": "localhost",
+        "PORT": "",
+    }
+}
+ 
+DATA_UPLOAD_MAX_MEMORY_SIZE = None
 
 
 # Password validation

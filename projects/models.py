@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.text import slugify
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class SlugMixin:
     def generate_unique_slug(self):
@@ -20,90 +21,163 @@ class SlugMixin:
             self.generate_unique_slug()
         super().save(*args, **kwargs)
 
-class BuilderDetails(SlugMixin, models.Model):
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, blank=True)
-    website = models.URLField(blank=True)
-    logo = models.FileField(blank=True)
-    company_name = models.CharField(max_length=200)
-    license_number = models.CharField(max_length=50)
-    contact_email = models.EmailField()
-    contact_phone = models.CharField(max_length=20)
-    details = models.TextField(blank=True)
-
-    def __str__(self):
-        return self.name
-
-class Developer(SlugMixin, models.Model):
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, blank=True)
-    email = models.EmailField()
-    phone = models.CharField(max_length=20)
-    website = models.URLField(blank=True)
-    details = models.TextField(blank=True)
-    logo = models.FileField(upload_to='developer_logos/', blank=True)
-
-    def __str__(self):
-        return self.name
-
 class State(SlugMixin, models.Model):
     name = models.CharField(max_length=100)
     abbreviation = models.CharField(max_length=2)
     slug = models.SlugField(unique=True, blank=True)
     description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = "States"
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.abbreviation})"
     
 class City(SlugMixin, models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
-    state = models.ForeignKey(State, on_delete=models.CASCADE)
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='cities')
     description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['state__name', 'name']
+        verbose_name_plural = "Cities"
+
+    def __str__(self):
+        return f"{self.name}, {self.state.abbreviation}"
+
+class Developer(SlugMixin, models.Model):
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True, blank=True)
+    company_name = models.CharField(max_length=200)
+    license_number = models.CharField(max_length=50, blank=True)
+    contact_email = models.EmailField()
+    contact_phone = models.CharField(max_length=20)
+    website = models.URLField(blank=True)
+    logo = models.FileField(upload_to='developer_logos/', blank=True)
+    details = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = "Developers"
 
     def __str__(self):
         return self.name
 
-class Image(models.Model):
-    image = models.FileField(upload_to='images/')
+class Rendering(models.Model):
+    title = models.CharField(max_length=200, help_text="e.g., Kitchen, Living Room, Exterior")
+    image = models.FileField(upload_to='renderings/')
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='renderings')
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'title']
+        verbose_name_plural = "Renderings"
 
     def __str__(self):
-        return str(self.image)
+        return f"{self.title} - {self.project.name}"
 
-    
-class Plan(models.Model):
+class SitePlan(models.Model):
+    project = models.OneToOneField('Project', on_delete=models.CASCADE, related_name='site_plan')
+    image = models.FileField(upload_to='site_plans/', help_text="Overall site plan image")
+    pdf = models.FileField(upload_to='site_plans/', blank=True, help_text="PDF version of site plan")
+    description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name_plural = "Site Plans"
+
+    def __str__(self):
+        return f"Site Plan - {self.project.name}"
+
+class Lot(models.Model):
     AVAILABILITY_STATUS_CHOICES = [
         ('Available', 'Available'),
-        ('Unavailable', 'Unavailable'),
+        ('Reserved', 'Reserved'),
+        ('Sold', 'Sold'),
+        ('Coming Soon', 'Coming Soon'),
     ]
-    plan_type = models.CharField(max_length=100)
-    plan_name = models.CharField(max_length=100)
-    plan = models.FileField()
-    availability_status = models.CharField(max_length=50, choices=AVAILABILITY_STATUS_CHOICES,default='Available')
-
-    def __str__(self):
-        return self.plan_name
     
-class Document(models.Model):
-    title = models.CharField(max_length=200)
-    document = models.FileField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='lots')
+    lot_number = models.CharField(max_length=50, help_text="e.g., 112, 12A, 15B")
+    availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
+    lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Lot size in square feet")
+    price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    description = models.TextField(blank=True)
 
-    def __str__(self):
-        return f"{self.title}"
-    
     class Meta:
-        ordering = ['-created_at']
-
-class FAQ(models.Model):
-    question = models.CharField(max_length=200)
-    answer = models.TextField()
+        ordering = ['lot_number']
+        verbose_name_plural = "Lots"
 
     def __str__(self):
-        return self.question
+        return f"Lot {self.lot_number} - {self.project.name}"
 
+class FloorPlan(models.Model):
+    HOUSE_TYPE_CHOICES = [
+        ('Single Family', 'Single Family'),
+        ('Townhouse', 'Townhouse'),
+        ('Duplex', 'Duplex'),
+        ('Triplex', 'Triplex'),
+        ('Condo', 'Condo'),
+        ('Custom', 'Custom'),
+    ]
     
+    AVAILABILITY_STATUS_CHOICES = [
+        ('Available', 'Available'),
+        ('Reserved', 'Reserved'),
+        ('Sold', 'Sold'),
+        ('Coming Soon', 'Coming Soon'),
+    ]
+    
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='floor_plans')
+    name = models.CharField(max_length=200, help_text="Name of the floor plan")
+    house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='Single Family')
+    square_footage = models.PositiveIntegerField(help_text="Total square footage")
+    bedrooms = models.PositiveIntegerField(validators=[MinValueValidator(0), MaxValueValidator(10)])
+    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(20)])
+    garage_spaces = models.PositiveIntegerField(default=0, help_text="Number of garage spaces")
+    lots = models.ManyToManyField(Lot, blank=True, help_text="Available lots for this floor plan")
+    availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
+    starting_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    plan_image = models.FileField(upload_to='floor_plans/', blank=True)
+    plan_pdf = models.FileField(upload_to='floor_plans/', blank=True)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name_plural = "Floor Plans"
+
+    def __str__(self):
+        return f"{self.name} - {self.project.name}"
+
+class Document(models.Model):
+    DOCUMENT_TYPE_CHOICES = [
+        ('Brochure', 'Brochure'),
+        ('Fact Sheet', 'Fact Sheet'),
+        ('Floor Plan', 'Floor Plan'),
+        ('Site Plan', 'Site Plan'),
+        ('Contract', 'Contract'),
+        ('Disclosure', 'Disclosure'),
+        ('Permit', 'Permit'),
+        ('Other', 'Other'),
+    ]
+    
+    title = models.CharField(max_length=200)
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES, default='Other')
+    document = models.FileField(upload_to='documents/')
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='documents', blank=True, null=True)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name_plural = "Documents"
+
+    def __str__(self):
+        return f"{self.title} ({self.document_type})"
+
 class Project(SlugMixin, models.Model):
     PROJECT_TYPE_CHOICES = [
         ('Single Family', 'Single Family'),
@@ -111,8 +185,10 @@ class Project(SlugMixin, models.Model):
         ('Condominium', 'Condominium'),
         ('Townhouse', 'Townhouse'),
         ('Move in Ready', 'Move in Ready'),
+        ('Custom Build', 'Custom Build'),
         ('Other', 'Other'),
     ]
+    
     STATUS_CHOICES = [
         ('Planning', 'Planning Phase'),
         ('Approval', 'Approval Process'),
@@ -121,41 +197,58 @@ class Project(SlugMixin, models.Model):
         ('Completed', 'Completed'),
         ('On Hold', 'On Hold'),
     ]
-    name = models.CharField(max_length=100)
+    
+    # Basic Information
+    name = models.CharField(max_length=200)
     slug = models.SlugField(unique=True, blank=True)
-    project_type = models.CharField(max_length=100, choices=PROJECT_TYPE_CHOICES,default='Single Family')
-    status = models.CharField(max_length=100, choices=STATUS_CHOICES,default='Planning')
-    project_address = models.CharField(max_length=200)
-    price_starting_from = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    price_ending_at = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    project_type = models.CharField(max_length=100, choices=PROJECT_TYPE_CHOICES, default='Single Family')
+    status = models.CharField(max_length=100, choices=STATUS_CHOICES, default='Planning')
+    project_address = models.CharField(max_length=500)
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='projects')
+    developer = models.ForeignKey(Developer, on_delete=models.CASCADE, related_name='projects')
+    
+    # Description
     project_description = models.TextField(blank=True)
     project_video_url = models.URLField(blank=True)
+    
+    # Pricing
+    price_starting_from = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    price_ending_at = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    pricing_details = models.TextField(blank=True, help_text="Rich text field for detailed pricing information")
+    
+    # Property Details
     area_square_footage = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     garage_spaces = models.IntegerField(blank=True, null=True)
-    plans = models.ManyToManyField(Plan, blank=True)
-    images = models.ManyToManyField(Image, blank=True)
-    documents = models.ManyToManyField(Document, blank=True)
     bedrooms = models.IntegerField(blank=True, null=True)
-    bathrooms = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    city = models.ForeignKey(City, on_delete=models.CASCADE, blank=True, null=True)
-    developer = models.ForeignKey(Developer, on_delete=models.SET_NULL, blank=True, null=True)
-
-    def __str__(self):
-        return self.name
+    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
     
-class Testimonial(models.Model):
-    SOURCE_CHOICES = [
-        ('Google', 'Google'),
-        ('Facebook', 'Facebook'),
-        ('Yelp', 'Yelp'),
-        ('Zillow', 'Zillow'),
-        ('Other', 'Other'),
-    ]
-    name = models.CharField(max_length=100)
-    testimonial = models.TextField()
-    image = models.FileField()
-    source = models.CharField(max_length=100, choices=SOURCE_CHOICES,default='Other')
+    # Financial Information
+    deposit_structure = models.TextField(blank=True, help_text="Rich text field for deposit structure details")
+    commission = models.TextField(blank=True, help_text="Rich text field for commission information")
+    
+    # Timeline Information
+    occupancy = models.TextField(blank=True, help_text="Occupancy timeline and details")
+    aps = models.TextField(blank=True, help_text="APS (Agreement of Purchase and Sale) details")
+    
+    # Meta Information
+    is_featured = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name_plural = "Projects"
 
     def __str__(self):
         return self.name
+
+    @property
+    def total_lots(self):
+        return self.lots.count()
+
+    @property
+    def available_lots(self):
+        return self.lots.filter(availability_status='Available').count()
+
+    @property
+    def total_floor_plans(self):
+        return self.floor_plans.count()

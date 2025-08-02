@@ -2,30 +2,48 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # State endpoints
     path('states/', views.StateListCreateView.as_view(), name='state-list'),
     path('states/<slug:slug>/', views.StateDetailView.as_view(), name='state-detail'),
     
+    # City endpoints
     path('cities/', views.CityListCreateView.as_view(), name='city-list'),
     path('cities/<slug:slug>/', views.CityDetailView.as_view(), name='city-detail'),
+    path('cities/<slug:city_slug>/projects/', views.CityProjectsView.as_view(), name='city-projects'),
     
-    path('builder-details/', views.BuilderDetailsListCreateView.as_view(), name='builder-details-list'),
-    path('builder-details/<slug:slug>/', views.BuilderDetailsDetailView.as_view(), name='builder-details-detail'),
-    
-    path('projects/', views.ProjectListCreateView.as_view(), name='project-list'),
-    path('projects/<slug:slug>/', views.ProjectDetailView.as_view(), name='project-detail'),
-    
-    path('images/', views.ImageListCreateView.as_view(), name='image-list'),
-    path('images/<int:pk>/', views.ImageDetailView.as_view(), name='image-detail'),
-
-    path('documents/', views.DocumentListCreateView.as_view(), name='document-list'),
-    path('documents/<int:pk>/', views.DocumentDetailView.as_view(), name='document-detail'),
-    
-    path('plans/', views.PlanListCreateView.as_view(), name='plan-list'),
-    path('plans/<int:pk>/', views.PlanDetailView.as_view(), name='plan-detail'),
-    
-    path('testimonials/', views.TestimonialListCreateView.as_view(), name='testimonial-list'),
-    path('testimonials/<int:pk>/', views.TestimonialDetailView.as_view(), name='testimonial-detail'),
-
+    # Developer endpoints
     path('developers/', views.DeveloperListCreateView.as_view(), name='developer-list'),
     path('developers/<slug:slug>/', views.DeveloperDetailView.as_view(), name='developer-detail'),
+    path('developers/<slug:developer_slug>/projects/', views.DeveloperProjectsView.as_view(), name='developer-projects'),
+    
+    # Project endpoints
+    path('projects/', views.ProjectListCreateView.as_view(), name='project-list'),
+    path('projects/featured/', views.FeaturedProjectsView.as_view(), name='featured-projects'),
+    path('projects/<slug:slug>/', views.ProjectDetailView.as_view(), name='project-detail'),
+    
+    # Project-specific endpoints
+    path('projects/<slug:project_slug>/renderings/', views.ProjectRenderingsView.as_view(), name='project-renderings'),
+    path('projects/<slug:project_slug>/floor-plans/', views.ProjectFloorPlansView.as_view(), name='project-floor-plans'),
+    path('projects/<slug:project_slug>/lots/', views.ProjectLotsView.as_view(), name='project-lots'),
+    path('projects/<slug:project_slug>/documents/', views.ProjectDocumentsView.as_view(), name='project-documents'),
+    
+    # Rendering endpoints
+    path('renderings/', views.RenderingListCreateView.as_view(), name='rendering-list'),
+    path('renderings/<int:pk>/', views.RenderingDetailView.as_view(), name='rendering-detail'),
+    
+    # Site Plan endpoints
+    path('site-plans/', views.SitePlanListCreateView.as_view(), name='site-plan-list'),
+    path('site-plans/<int:pk>/', views.SitePlanDetailView.as_view(), name='site-plan-detail'),
+    
+    # Lot endpoints
+    path('lots/', views.LotListCreateView.as_view(), name='lot-list'),
+    path('lots/<int:pk>/', views.LotDetailView.as_view(), name='lot-detail'),
+    
+    # Floor Plan endpoints
+    path('floor-plans/', views.FloorPlanListCreateView.as_view(), name='floor-plan-list'),
+    path('floor-plans/<int:pk>/', views.FloorPlanDetailView.as_view(), name='floor-plan-detail'),
+    
+    # Document endpoints
+    path('documents/', views.DocumentListCreateView.as_view(), name='document-list'),
+    path('documents/<int:pk>/', views.DocumentDetailView.as_view(), name='document-detail'),
 ]

@@ -1,28 +1,8 @@
 from rest_framework import serializers
 from .models import (
-    BuilderDetails, State, City, Image, Plan, Document, 
-    FAQ, Project, Testimonial, Developer
+    State, City, Developer, Rendering, SitePlan, Lot, FloorPlan, 
+    Document, Project
 )
-
-class ImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Image
-        fields = '__all__'
-
-class PlanSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Plan
-        fields = '__all__'
-
-class DocumentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Document
-        fields = '__all__'
-
-class FAQSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FAQ
-        fields = '__all__'
 
 class StateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,14 +11,10 @@ class StateSerializer(serializers.ModelSerializer):
 
 class CitySerializer(serializers.ModelSerializer):
     state_name = serializers.CharField(source='state.name', read_only=True)
+    state_abbreviation = serializers.CharField(source='state.abbreviation', read_only=True)
     
     class Meta:
         model = City
-        fields = '__all__'
-
-class BuilderDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BuilderDetails
         fields = '__all__'
 
 class DeveloperSerializer(serializers.ModelSerializer):
@@ -47,38 +23,96 @@ class DeveloperSerializer(serializers.ModelSerializer):
         fields = '__all__'
         extra_kwargs = {
             'slug': {'read_only': True},
+            'logo': {'required': False, 'allow_null': True},
         }
 
+class RenderingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rendering
+        fields = '__all__'
+
+class SitePlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SitePlan
+        fields = '__all__'
+
+class LotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lot
+        fields = '__all__'
+
+class FloorPlanSerializer(serializers.ModelSerializer):
+    lots = LotSerializer(many=True, read_only=True)
+    lot_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        write_only=True,
+        queryset=Lot.objects.all(),
+        source='lots',
+        required=False
+    )
+    
+    class Meta:
+        model = FloorPlan
+        fields = '__all__'
+
+class DocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Document
+        fields = '__all__'
+
 class ProjectSerializer(serializers.ModelSerializer):
-    images = ImageSerializer(many=True, read_only=True)
-    plans = PlanSerializer(many=True, read_only=True)
+    # Nested serializers for related objects
+    renderings = RenderingSerializer(many=True, read_only=True)
+    site_plan = SitePlanSerializer(read_only=True)
+    lots = LotSerializer(many=True, read_only=True)
+    floor_plans = FloorPlanSerializer(many=True, read_only=True)
     documents = DocumentSerializer(many=True, read_only=True)
-    uploaded_images = serializers.ListField(
-        child=serializers.FileField(max_length=1000000, allow_empty_file=False, use_url=False),
+    
+    # Related object serializers
+    city = CitySerializer(read_only=True)
+    developer = DeveloperSerializer(read_only=True)
+    
+    # Foreign key IDs for write operations
+    city_id = serializers.PrimaryKeyRelatedField(
+        queryset=City.objects.all(),
+        source='city',
+        write_only=True
+    )
+    developer_id = serializers.PrimaryKeyRelatedField(
+        queryset=Developer.objects.all(),
+        source='developer',
+        write_only=True
+    )
+    
+    # File upload fields
+    uploaded_renderings = serializers.ListField(
+        child=serializers.DictField(),
         write_only=True,
         required=False,
         allow_empty=True
     )
-    uploaded_plans = serializers.ListField(
-        child=serializers.FileField(max_length=1000000, allow_empty_file=False, use_url=False),
+    uploaded_site_plan = serializers.DictField(
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    uploaded_lots = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    uploaded_floor_plans = serializers.ListField(
+        child=serializers.DictField(),
         write_only=True,
         required=False,
         allow_empty=True
     )
     uploaded_documents = serializers.ListField(
-        child=serializers.FileField(max_length=1000000, allow_empty_file=False, use_url=False),
+        child=serializers.DictField(),
         write_only=True,
         required=False,
         allow_empty=True
-    )
-    city = serializers.PrimaryKeyRelatedField(queryset=City.objects.all())
-    developer = DeveloperSerializer(read_only=True)
-    developer_id = serializers.PrimaryKeyRelatedField(
-        queryset=Developer.objects.all(),
-        source='developer',
-        write_only=True,
-        required=False,
-        allow_null=True
     )
 
     class Meta:
@@ -88,91 +122,122 @@ class ProjectSerializer(serializers.ModelSerializer):
             'slug': {'read_only': True},
         }
 
-    def _is_file(self, data):
-        """Helper method to check if the data is a file object"""
-        return hasattr(data, 'read') and callable(data.read)
-
-    def _get_valid_files(self, data, field_name):
-        """Helper method to extract valid files from request data"""
-        if not data:
-            return []
-            
-        if isinstance(data, list):
-            return [f for f in data if self._is_file(f)]
-            
-        if isinstance(data, dict):
-            return [f for f in data.values() if self._is_file(f)]
-            
-        return []
-
     def create(self, validated_data):
-        # Extract and validate files
-        uploaded_images = self._get_valid_files(validated_data.pop('uploaded_images', []), 'uploaded_images')
-        uploaded_plans = self._get_valid_files(validated_data.pop('uploaded_plans', []), 'uploaded_plans')
-        uploaded_documents = self._get_valid_files(validated_data.pop('uploaded_documents', []), 'uploaded_documents')
+        # Extract uploaded data
+        uploaded_renderings = validated_data.pop('uploaded_renderings', [])
+        uploaded_site_plan = validated_data.pop('uploaded_site_plan', {})
+        uploaded_lots = validated_data.pop('uploaded_lots', [])
+        uploaded_floor_plans = validated_data.pop('uploaded_floor_plans', [])
+        uploaded_documents = validated_data.pop('uploaded_documents', [])
         
+        # Create project
         project = Project.objects.create(**validated_data)
         
-        # Handle images
-        for image_file in uploaded_images:
-            image = Image.objects.create(image=image_file)
-            project.images.add(image)
-            
-        # Handle plans
-        for plan_file in uploaded_plans:
-            plan = Plan.objects.create(
-                plan=plan_file,
-                plan_name=getattr(plan_file, 'name', 'Unnamed Plan'),
-                plan_type='Default'
-            )
-            project.plans.add(plan)
-            
-        # Handle documents
-        for doc_file in uploaded_documents:
-            document = Document.objects.create(
-                document=doc_file,
-                title=getattr(doc_file, 'name', 'Unnamed Document')
-            )
-            project.documents.add(document)
-            
+        # Create renderings
+        for rendering_data in uploaded_renderings:
+            Rendering.objects.create(project=project, **rendering_data)
+        
+        # Create site plan
+        if uploaded_site_plan:
+            SitePlan.objects.create(project=project, **uploaded_site_plan)
+        
+        # Create lots
+        for lot_data in uploaded_lots:
+            Lot.objects.create(project=project, **lot_data)
+        
+        # Create floor plans
+        for floor_plan_data in uploaded_floor_plans:
+            lots_data = floor_plan_data.pop('lots', [])
+            floor_plan = FloorPlan.objects.create(project=project, **floor_plan_data)
+            if lots_data:
+                floor_plan.lots.set(lots_data)
+        
+        # Create documents
+        for document_data in uploaded_documents:
+            Document.objects.create(project=project, **document_data)
+        
         return project
 
     def update(self, instance, validated_data):
-        # Extract and validate files
-        uploaded_images = self._get_valid_files(validated_data.pop('uploaded_images', []), 'uploaded_images')
-        uploaded_plans = self._get_valid_files(validated_data.pop('uploaded_plans', []), 'uploaded_plans')
-        uploaded_documents = self._get_valid_files(validated_data.pop('uploaded_documents', []), 'uploaded_documents')
+        # Extract uploaded data
+        uploaded_renderings = validated_data.pop('uploaded_renderings', [])
+        uploaded_site_plan = validated_data.pop('uploaded_site_plan', {})
+        uploaded_lots = validated_data.pop('uploaded_lots', [])
+        uploaded_floor_plans = validated_data.pop('uploaded_floor_plans', [])
+        uploaded_documents = validated_data.pop('uploaded_documents', [])
         
         # Update basic fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         
-        # Handle images
-        for image_file in uploaded_images:
-            image = Image.objects.create(image=image_file)
-            instance.images.add(image)
-            
-        # Handle plans
-        for plan_file in uploaded_plans:
-            plan = Plan.objects.create(
-                plan=plan_file,
-                plan_name=getattr(plan_file, 'name', 'Unnamed Plan'),
-                plan_type='Default'
+        # Handle renderings
+        for rendering_data in uploaded_renderings:
+            Rendering.objects.create(project=instance, **rendering_data)
+        
+        # Handle site plan
+        if uploaded_site_plan:
+            SitePlan.objects.update_or_create(
+                project=instance,
+                defaults=uploaded_site_plan
             )
-            instance.plans.add(plan)
-            
+        
+        # Handle lots
+        for lot_data in uploaded_lots:
+            Lot.objects.create(project=instance, **lot_data)
+        
+        # Handle floor plans
+        for floor_plan_data in uploaded_floor_plans:
+            lots_data = floor_plan_data.pop('lots', [])
+            floor_plan = FloorPlan.objects.create(project=instance, **floor_plan_data)
+            if lots_data:
+                floor_plan.lots.set(lots_data)
+        
         # Handle documents
-        for doc_file in uploaded_documents:
-            document = Document.objects.create(
-                file=doc_file,
-                title=getattr(doc_file, 'name', 'Unnamed Document')
-            )
-            instance.documents.add(document)
-            
+        for document_data in uploaded_documents:
+            Document.objects.create(project=instance, **document_data)
+        
         return instance
 
-class TestimonialSerializer(serializers.ModelSerializer):
+# Simplified serializers for list views
+class ProjectListSerializer(serializers.ModelSerializer):
+    city_name = serializers.CharField(source='city.name', read_only=True)
+    developer_name = serializers.CharField(source='developer.name', read_only=True)
+    total_lots = serializers.IntegerField(read_only=True)
+    available_lots = serializers.IntegerField(read_only=True)
+    total_floor_plans = serializers.IntegerField(read_only=True)
+    
     class Meta:
-        model = Testimonial
+        model = Project
+        fields = [
+            'id', 'name', 'slug', 'project_type', 'status', 'project_address',
+            'city_name', 'developer_name', 'price_starting_from', 'price_ending_at',
+            'total_lots', 'available_lots', 'total_floor_plans', 'is_featured',
+            'is_active'
+        ]
+
+# Serializers for individual components
+class RenderingListSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    
+    class Meta:
+        model = Rendering
+        fields = '__all__'
+
+class FloorPlanListSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    lots_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FloorPlan
+        fields = '__all__'
+    
+    def get_lots_count(self, obj):
+        return obj.lots.count()
+
+class LotListSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    
+    class Meta:
+        model = Lot
         fields = '__all__'

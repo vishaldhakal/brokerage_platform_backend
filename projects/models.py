@@ -103,17 +103,32 @@ class Lot(models.Model):
     
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='lots')
     lot_number = models.CharField(max_length=50, help_text="e.g., 112, 12A, 15B")
+    lot_numbers = models.TextField(blank=True, help_text="Comma-separated lot numbers (e.g., 1,2,3,4,5)")
     availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
     lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Lot size in square feet")
     price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ['lot_number']
+        ordering = ['order', 'lot_number']
         verbose_name_plural = "Lots"
 
     def __str__(self):
         return f"Lot {self.lot_number} - {self.project.name}"
+    
+    def get_lot_numbers_list(self):
+        """Return list of lot numbers from comma-separated field"""
+        if self.lot_numbers:
+            return [num.strip() for num in self.lot_numbers.split(',') if num.strip()]
+        return [self.lot_number] if self.lot_number else []
+    
+    def set_lot_numbers_list(self, lot_numbers_list):
+        """Set lot numbers from a list"""
+        if lot_numbers_list:
+            self.lot_numbers = ','.join(str(num).strip() for num in lot_numbers_list)
+        else:
+            self.lot_numbers = ''
 
 class FloorPlan(models.Model):
     HOUSE_TYPE_CHOICES = [
@@ -140,6 +155,7 @@ class FloorPlan(models.Model):
     bathrooms = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(20)])
     garage_spaces = models.PositiveIntegerField(default=0, help_text="Number of garage spaces")
     lots = models.ManyToManyField(Lot, blank=True, help_text="Available lots for this floor plan")
+    lot_numbers = models.TextField(blank=True, help_text="Comma-separated lot numbers this plan is available for")
     availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
     starting_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     plan_image = models.FileField(upload_to='floor_plans/', blank=True)
@@ -153,6 +169,27 @@ class FloorPlan(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.project.name}"
+    
+    def get_lot_numbers_list(self):
+        """Return list of lot numbers from comma-separated field"""
+        if self.lot_numbers:
+            return [num.strip() for num in self.lot_numbers.split(',') if num.strip()]
+        return []
+    
+    def set_lot_numbers_list(self, lot_numbers_list):
+        """Set lot numbers from a list"""
+        if lot_numbers_list:
+            self.lot_numbers = ','.join(str(num).strip() for num in lot_numbers_list)
+        else:
+            self.lot_numbers = ''
+    
+    def get_available_lots_count(self):
+        """Get count of available lots for this floor plan"""
+        return self.lots.filter(availability_status='Available').count()
+    
+    def get_total_lots_count(self):
+        """Get total count of lots for this floor plan"""
+        return self.lots.count()
 
 class Document(models.Model):
     DOCUMENT_TYPE_CHOICES = [

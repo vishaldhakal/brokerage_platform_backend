@@ -37,9 +37,36 @@ class SitePlanSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class LotSerializer(serializers.ModelSerializer):
+    lot_numbers_list = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        source='get_lot_numbers_list'
+    )
+    
     class Meta:
         model = Lot
         fields = '__all__'
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['lot_numbers_list'] = instance.get_lot_numbers_list()
+        return data
+    
+    def create(self, validated_data):
+        lot_numbers_list = self.context.get('lot_numbers_list', [])
+        instance = super().create(validated_data)
+        if lot_numbers_list:
+            instance.set_lot_numbers_list(lot_numbers_list)
+            instance.save()
+        return instance
+    
+    def update(self, instance, validated_data):
+        lot_numbers_list = self.context.get('lot_numbers_list', [])
+        instance = super().update(instance, validated_data)
+        if lot_numbers_list:
+            instance.set_lot_numbers_list(lot_numbers_list)
+            instance.save()
+        return instance
 
 class FloorPlanSerializer(serializers.ModelSerializer):
     lots = LotSerializer(many=True, read_only=True)
@@ -50,10 +77,40 @@ class FloorPlanSerializer(serializers.ModelSerializer):
         source='lots',
         required=False
     )
+    lot_numbers_list = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        source='get_lot_numbers_list'
+    )
+    available_lots_count = serializers.IntegerField(read_only=True)
+    total_lots_count = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = FloorPlan
         fields = '__all__'
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['lot_numbers_list'] = instance.get_lot_numbers_list()
+        data['available_lots_count'] = instance.get_available_lots_count()
+        data['total_lots_count'] = instance.get_total_lots_count()
+        return data
+    
+    def create(self, validated_data):
+        lot_numbers_list = self.context.get('lot_numbers_list', [])
+        instance = super().create(validated_data)
+        if lot_numbers_list:
+            instance.set_lot_numbers_list(lot_numbers_list)
+            instance.save()
+        return instance
+    
+    def update(self, instance, validated_data):
+        lot_numbers_list = self.context.get('lot_numbers_list', [])
+        instance = super().update(instance, validated_data)
+        if lot_numbers_list:
+            instance.set_lot_numbers_list(lot_numbers_list)
+            instance.save()
+        return instance
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -141,14 +198,22 @@ class ProjectSerializer(serializers.ModelSerializer):
         if uploaded_site_plan:
             SitePlan.objects.create(project=project, **uploaded_site_plan)
         
-        # Create lots
+        # Create lots with lot numbers handling
         for lot_data in uploaded_lots:
-            Lot.objects.create(project=project, **lot_data)
+            lot_numbers_list = lot_data.pop('lot_numbers_list', [])
+            lot = Lot.objects.create(project=project, **lot_data)
+            if lot_numbers_list:
+                lot.set_lot_numbers_list(lot_numbers_list)
+                lot.save()
         
-        # Create floor plans
+        # Create floor plans with lot associations
         for floor_plan_data in uploaded_floor_plans:
             lots_data = floor_plan_data.pop('lots', [])
+            lot_numbers_list = floor_plan_data.pop('lot_numbers_list', [])
             floor_plan = FloorPlan.objects.create(project=project, **floor_plan_data)
+            if lot_numbers_list:
+                floor_plan.set_lot_numbers_list(lot_numbers_list)
+                floor_plan.save()
             if lots_data:
                 floor_plan.lots.set(lots_data)
         
@@ -182,14 +247,22 @@ class ProjectSerializer(serializers.ModelSerializer):
                 defaults=uploaded_site_plan
             )
         
-        # Handle lots
+        # Handle lots with lot numbers
         for lot_data in uploaded_lots:
-            Lot.objects.create(project=instance, **lot_data)
+            lot_numbers_list = lot_data.pop('lot_numbers_list', [])
+            lot = Lot.objects.create(project=instance, **lot_data)
+            if lot_numbers_list:
+                lot.set_lot_numbers_list(lot_numbers_list)
+                lot.save()
         
-        # Handle floor plans
+        # Handle floor plans with lot associations
         for floor_plan_data in uploaded_floor_plans:
             lots_data = floor_plan_data.pop('lots', [])
+            lot_numbers_list = floor_plan_data.pop('lot_numbers_list', [])
             floor_plan = FloorPlan.objects.create(project=instance, **floor_plan_data)
+            if lot_numbers_list:
+                floor_plan.set_lot_numbers_list(lot_numbers_list)
+                floor_plan.save()
             if lots_data:
                 floor_plan.lots.set(lots_data)
         

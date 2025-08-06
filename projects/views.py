@@ -59,7 +59,7 @@ class DeveloperDetailView(generics.RetrieveUpdateDestroyAPIView):
 class ProjectListCreateView(generics.ListCreateAPIView):
     queryset = Project.objects.filter(is_active=True)
     serializer_class = ProjectListSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
     search_fields = ['name', 'project_type', 'project_address', 'city__name', 'developer__name']
     filterset_fields = {

@@ -11,11 +11,6 @@ urlpatterns = [
     path('cities/<slug:slug>/', views.CityDetailView.as_view(), name='city-detail'),
     path('cities/<slug:city_slug>/projects/', views.CityProjectsView.as_view(), name='city-projects'),
     
-    # Developer endpoints
-    path('developers/', views.DeveloperListCreateView.as_view(), name='developer-list'),
-    path('developers/<slug:slug>/', views.DeveloperDetailView.as_view(), name='developer-detail'),
-    path('developers/<slug:developer_slug>/projects/', views.DeveloperProjectsView.as_view(), name='developer-projects'),
-    
     # Project endpoints
     path('projects/', views.ProjectListCreateView.as_view(), name='project-list'),
     path('projects/featured/', views.FeaturedProjectsView.as_view(), name='featured-projects'),

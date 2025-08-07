@@ -49,33 +49,13 @@ class City(SlugMixin, models.Model):
     def __str__(self):
         return f"{self.name}, {self.state.abbreviation}"
 
-class Developer(SlugMixin, models.Model):
-    name = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True, blank=True)
-    company_name = models.CharField(max_length=200)
-    license_number = models.CharField(max_length=50, blank=True)
-    contact_email = models.EmailField()
-    contact_phone = models.CharField(max_length=20)
-    website = models.URLField(blank=True)
-    logo = models.FileField(upload_to='developer_logos/', blank=True)
-    details = models.TextField(blank=True)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ['name']
-        verbose_name_plural = "Developers"
-
-    def __str__(self):
-        return self.name
-
 class Rendering(models.Model):
     title = models.CharField(max_length=200, help_text="e.g., Kitchen, Living Room, Exterior")
     image = models.FileField(upload_to='renderings/')
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='renderings')
-    order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ['order', 'title']
+        ordering = ['title']
         verbose_name_plural = "Renderings"
 
     def __str__(self):
@@ -83,52 +63,13 @@ class Rendering(models.Model):
 
 class SitePlan(models.Model):
     project = models.OneToOneField('Project', on_delete=models.CASCADE, related_name='site_plan')
-    image = models.FileField(upload_to='site_plans/', help_text="Overall site plan image")
-    pdf = models.FileField(upload_to='site_plans/', blank=True, help_text="PDF version of site plan")
-    description = models.TextField(blank=True)
+    file = models.FileField(upload_to='site_plans/', blank=True, null=True, help_text="Site plan file (PDF or image)")
 
     class Meta:
         verbose_name_plural = "Site Plans"
 
     def __str__(self):
         return f"Site Plan - {self.project.name}"
-
-class Lot(models.Model):
-    AVAILABILITY_STATUS_CHOICES = [
-        ('Available', 'Available'),
-        ('Reserved', 'Reserved'),
-        ('Sold', 'Sold'),
-        ('Coming Soon', 'Coming Soon'),
-    ]
-    
-    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='lots')
-    lot_number = models.CharField(max_length=50, help_text="e.g., 112, 12A, 15B")
-    lot_numbers = models.TextField(blank=True, help_text="Comma-separated lot numbers (e.g., 1,2,3,4,5)")
-    availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
-    lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Lot size in square feet")
-    price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-    description = models.TextField(blank=True)
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order', 'lot_number']
-        verbose_name_plural = "Lots"
-
-    def __str__(self):
-        return f"Lot {self.lot_number} - {self.project.name}"
-    
-    def get_lot_numbers_list(self):
-        """Return list of lot numbers from comma-separated field"""
-        if self.lot_numbers:
-            return [num.strip() for num in self.lot_numbers.split(',') if num.strip()]
-        return [self.lot_number] if self.lot_number else []
-    
-    def set_lot_numbers_list(self, lot_numbers_list):
-        """Set lot numbers from a list"""
-        if lot_numbers_list:
-            self.lot_numbers = ','.join(str(num).strip() for num in lot_numbers_list)
-        else:
-            self.lot_numbers = ''
 
 class FloorPlan(models.Model):
     HOUSE_TYPE_CHOICES = [
@@ -154,27 +95,48 @@ class FloorPlan(models.Model):
     bedrooms = models.PositiveIntegerField(validators=[MinValueValidator(0), MaxValueValidator(10)])
     bathrooms = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(20)])
     garage_spaces = models.PositiveIntegerField(default=0, help_text="Number of garage spaces")
-    lots = models.ManyToManyField(Lot, blank=True, help_text="Available lots for this floor plan")
-    lot_numbers = models.TextField(blank=True, help_text="Comma-separated lot numbers this plan is available for")
     availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
     starting_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-    plan_image = models.FileField(upload_to='floor_plans/', blank=True)
-    plan_pdf = models.FileField(upload_to='floor_plans/', blank=True)
-    description = models.TextField(blank=True)
-    order = models.PositiveIntegerField(default=0)
+    plan_file = models.FileField(upload_to='floor_plans/', blank=True, null=True, help_text="Floor plan file (PDF or image)")
 
     class Meta:
-        ordering = ['order', 'name']
+        ordering = ['name']
         verbose_name_plural = "Floor Plans"
 
     def __str__(self):
         return f"{self.name} - {self.project.name}"
+
+class Lot(models.Model):
+    AVAILABILITY_STATUS_CHOICES = [
+        ('Available', 'Available'),
+        ('Reserved', 'Reserved'),
+        ('Sold', 'Sold'),
+        ('Coming Soon', 'Coming Soon'),
+    ]
+    
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='lots')
+    lot_number = models.CharField(max_length=50, help_text="e.g., 112, 12A, 15B")
+    lot_numbers = models.TextField(blank=True, help_text="Comma-separated lot numbers (e.g., 1,2,3,4,5)")
+    availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
+    lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Lot size in square feet")
+    price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    description = models.TextField(blank=True)
+    lot_rendering = models.FileField(upload_to='lot_renderings/', blank=True, help_text="Rendering image for this specific lot")
+    floor_plans = models.ManyToManyField(FloorPlan, blank=True, help_text="Available floor plans for this lot")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'lot_number']
+        verbose_name_plural = "Lots"
+
+    def __str__(self):
+        return f"Lot {self.lot_number} - {self.project.name}"
     
     def get_lot_numbers_list(self):
         """Return list of lot numbers from comma-separated field"""
         if self.lot_numbers:
             return [num.strip() for num in self.lot_numbers.split(',') if num.strip()]
-        return []
+        return [self.lot_number] if self.lot_number else []
     
     def set_lot_numbers_list(self, lot_numbers_list):
         """Set lot numbers from a list"""
@@ -182,14 +144,6 @@ class FloorPlan(models.Model):
             self.lot_numbers = ','.join(str(num).strip() for num in lot_numbers_list)
         else:
             self.lot_numbers = ''
-    
-    def get_available_lots_count(self):
-        """Get count of available lots for this floor plan"""
-        return self.lots.filter(availability_status='Available').count()
-    
-    def get_total_lots_count(self):
-        """Get total count of lots for this floor plan"""
-        return self.lots.count()
 
 class Document(models.Model):
     DOCUMENT_TYPE_CHOICES = [
@@ -242,7 +196,6 @@ class Project(SlugMixin, models.Model):
     status = models.CharField(max_length=100, choices=STATUS_CHOICES, default='Planning')
     project_address = models.CharField(max_length=500)
     city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='projects')
-    developer = models.ForeignKey(Developer, on_delete=models.CASCADE, related_name='projects')
     
     # Description
     project_description = models.TextField(blank=True)
@@ -254,11 +207,7 @@ class Project(SlugMixin, models.Model):
     pricing_details = models.TextField(blank=True, help_text="Rich text field for detailed pricing information")
     
     # Property Details
-    area_square_footage = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    garage_spaces = models.IntegerField(blank=True, null=True)
-    bedrooms = models.IntegerField(blank=True, null=True)
-    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
+    # Removed area_square_footage, lot_size, garage_spaces, bedrooms, bathrooms as they are now handled at lot/floor plan level
     
     # Financial Information
     deposit_structure = models.TextField(blank=True, help_text="Rich text field for deposit structure details")

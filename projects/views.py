@@ -3,12 +3,13 @@ from rest_framework import generics, filters, status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+import json
 from .models import (
-    State, City, Developer, Rendering, SitePlan, Lot, FloorPlan, 
+    State, City, Rendering, SitePlan, Lot, FloorPlan, 
     Document, Project
 )
 from .serializers import (
-    StateSerializer, CitySerializer, DeveloperSerializer,
+    StateSerializer, CitySerializer,
     RenderingSerializer, SitePlanSerializer, LotSerializer, FloorPlanSerializer,
     DocumentSerializer, ProjectSerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
@@ -41,37 +42,18 @@ class CityDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CitySerializer
     lookup_field = 'slug'
 
-# Developer Views
-class DeveloperListCreateView(generics.ListCreateAPIView):
-    queryset = Developer.objects.filter(is_active=True)
-    serializer_class = DeveloperSerializer
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', 'company_name', 'contact_email']
-
-class DeveloperDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Developer.objects.all()
-    serializer_class = DeveloperSerializer
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-    lookup_field = 'slug'
-
 # Project Views
 class ProjectListCreateView(generics.ListCreateAPIView):
     queryset = Project.objects.filter(is_active=True)
-    serializer_class = ProjectListSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
-    search_fields = ['name', 'project_type', 'project_address', 'city__name', 'developer__name']
+    search_fields = ['name', 'project_type', 'project_address', 'city__name']
     filterset_fields = {
         'project_type': ['exact'],
         'status': ['exact'],
         'city': ['exact'],
-        'developer': ['exact'],
         'price_starting_from': ['gte', 'lte'],
         'price_ending_at': ['gte', 'lte'],
-        'bedrooms': ['exact', 'gte', 'lte'],
-        'bathrooms': ['exact', 'gte', 'lte'],
-        'garage_spaces': ['exact', 'gte', 'lte'],
         'is_featured': ['exact'],
     }
     ordering_fields = ['price_starting_from', 'price_ending_at', 'name', 'id']
@@ -79,20 +61,200 @@ class ProjectListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = super().get_queryset()
         # Add prefetch_related for better performance
-        return queryset.select_related('city', 'developer').prefetch_related(
+        return queryset.select_related('city').prefetch_related(
             'renderings', 'lots', 'floor_plans', 'documents'
         )
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return ProjectSerializer
+        return ProjectListSerializer
+
+    def create(self, request, *args, **kwargs):
+        try:
+            # Debug: Print received data
+            print("Received data:", request.data)
+            print("Received files:", request.FILES)
+            
+            # Parse form data
+            data = {}
+            
+            # Handle basic fields
+            for key, value in request.data.items():
+                if key.startswith('uploaded_') or key.startswith('existing_'):
+                    continue
+                if key == 'city_id':
+                    data['city_id'] = int(value)
+                else:
+                    data[key] = value
+            
+            # Handle lots (both existing and new)
+            lots_data = []
+            for key, value in request.data.items():
+                if key.startswith('lots[') and key.endswith(']'):
+                    try:
+                        lot_data = json.loads(value)
+                        # Handle lot rendering file
+                        lot_rendering_key = key.replace(']', '.lot_rendering]')
+                        if lot_rendering_key in request.FILES:
+                            lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
+                        lots_data.append(lot_data)
+                    except json.JSONDecodeError:
+                        continue
+            data['lots'] = lots_data
+            
+            # Handle floor plans (both existing and new)
+            floor_plans_data = []
+            for key, value in request.data.items():
+                if key.startswith('floor_plans[') and key.endswith(']'):
+                    try:
+                        plan_data = json.loads(value)
+                        # Handle plan file
+                        plan_file_key = key.replace(']', '.plan_file]')
+                        if plan_file_key in request.FILES:
+                            plan_data['plan_file'] = request.FILES[plan_file_key]
+                        floor_plans_data.append(plan_data)
+                    except json.JSONDecodeError:
+                        continue
+            data['floor_plans'] = floor_plans_data
+            
+            # Handle uploaded renderings
+            uploaded_renderings = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_images':
+                    uploaded_renderings.append({'image': value})
+            data['uploaded_renderings'] = uploaded_renderings
+            
+            # Handle uploaded documents
+            uploaded_documents = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_documents':
+                    uploaded_documents.append({'document': value})
+            data['uploaded_documents'] = uploaded_documents
+            
+            # Debug: Print final data
+            print("Final data for serializer:", data)
+            
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     lookup_field = 'slug'
 
     def get_queryset(self):
-        return super().get_queryset().select_related('city', 'developer').prefetch_related(
+        return super().get_queryset().select_related('city').prefetch_related(
             'renderings', 'lots', 'floor_plans', 'documents'
         )
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def update(self, request, *args, **kwargs):
+        try:
+            # Debug: Print received data
+            print("Update - Received data:", request.data)
+            print("Update - Received files:", request.FILES)
+            
+            # Parse form data
+            data = {}
+            
+            # Handle basic fields
+            for key, value in request.data.items():
+                if key.startswith('lots[') or key.startswith('floor_plans[') or key.startswith('existing_'):
+                    continue
+                if key == 'city_id':
+                    data['city_id'] = int(value)
+                else:
+                    data[key] = value
+            
+            # Handle lots (both existing and new)
+            lots_data = []
+            for key, value in request.data.items():
+                if key.startswith('lots[') and key.endswith(']'):
+                    try:
+                        lot_data = json.loads(value)
+                        # Handle lot rendering file
+                        lot_rendering_key = key.replace(']', '.lot_rendering]')
+                        if lot_rendering_key in request.FILES:
+                            lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
+                        lots_data.append(lot_data)
+                    except json.JSONDecodeError:
+                        continue
+            data['lots'] = lots_data
+            
+            # Handle floor plans (both existing and new)
+            floor_plans_data = []
+            for key, value in request.data.items():
+                if key.startswith('floor_plans[') and key.endswith(']'):
+                    try:
+                        plan_data = json.loads(value)
+                        # Handle plan file
+                        plan_file_key = key.replace(']', '.plan_file]')
+                        if plan_file_key in request.FILES:
+                            plan_data['plan_file'] = request.FILES[plan_file_key]
+                        floor_plans_data.append(plan_data)
+                    except json.JSONDecodeError:
+                        continue
+            data['floor_plans'] = floor_plans_data
+            
+            # Handle uploaded renderings
+            uploaded_renderings = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_images':
+                    uploaded_renderings.append({'image': value})
+            data['uploaded_renderings'] = uploaded_renderings
+            
+            # Handle uploaded documents
+            uploaded_documents = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_documents':
+                    uploaded_documents.append({'document': value})
+            data['uploaded_documents'] = uploaded_documents
+            
+            # Handle existing files
+            existing_images = request.data.get('existing_images', '[]')
+            existing_documents = request.data.get('existing_documents', '[]')
+            
+            try:
+                data['existing_images'] = json.loads(existing_images)
+                data['existing_documents'] = json.loads(existing_documents)
+            except json.JSONDecodeError:
+                data['existing_images'] = []
+                data['existing_documents'] = []
+            
+            # Debug: Print final data
+            print("Update - Final data for serializer:", data)
+            
+            serializer = self.get_serializer(self.get_object(), data=data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            print("Update error:", str(e))
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 # Rendering Views
 class RenderingListCreateView(generics.ListCreateAPIView):
@@ -167,14 +329,14 @@ class ProjectRenderingsView(generics.ListAPIView):
     
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
-        return Rendering.objects.filter(project__slug=project_slug).order_by('order')
+        return Rendering.objects.filter(project__slug=project_slug).order_by('title')
 
 class ProjectFloorPlansView(generics.ListAPIView):
     serializer_class = FloorPlanSerializer
     
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
-        return FloorPlan.objects.filter(project__slug=project_slug).order_by('order')
+        return FloorPlan.objects.filter(project__slug=project_slug).order_by('name')
 
 class ProjectLotsView(generics.ListAPIView):
     serializer_class = LotSerializer
@@ -196,20 +358,7 @@ class FeaturedProjectsView(generics.ListAPIView):
     queryset = Project.objects.filter(is_featured=True, is_active=True)
     
     def get_queryset(self):
-        return super().get_queryset().select_related('city', 'developer').prefetch_related(
-            'renderings', 'lots', 'floor_plans'
-        )
-
-# Developer Projects View
-class DeveloperProjectsView(generics.ListAPIView):
-    serializer_class = ProjectListSerializer
-    
-    def get_queryset(self):
-        developer_slug = self.kwargs.get('developer_slug')
-        return Project.objects.filter(
-            developer__slug=developer_slug, 
-            is_active=True
-        ).select_related('city', 'developer').prefetch_related(
+        return super().get_queryset().select_related('city').prefetch_related(
             'renderings', 'lots', 'floor_plans'
         )
 
@@ -222,6 +371,6 @@ class CityProjectsView(generics.ListAPIView):
         return Project.objects.filter(
             city__slug=city_slug, 
             is_active=True
-        ).select_related('city', 'developer').prefetch_related(
+        ).select_related('city').prefetch_related(
             'renderings', 'lots', 'floor_plans'
         )

@@ -227,22 +227,38 @@ class ProjectSerializer(serializers.ModelSerializer):
         created_floor_plans = {}
         for floor_plan_data in floor_plans_data:
             try:
-                # Convert string numbers to appropriate types
-                if floor_plan_data.get('square_footage'):
+                # Handle file uploads - extract files from the request
+                plan_file = floor_plan_data.pop('plan_file', None)
+                existing_plan_file = floor_plan_data.pop('existing_plan_file', None)
+                
+                # Convert string numbers to appropriate types (only if not empty)
+                if floor_plan_data.get('square_footage') and floor_plan_data['square_footage'].strip():
                     floor_plan_data['square_footage'] = int(floor_plan_data['square_footage'])
-                if floor_plan_data.get('bedrooms'):
+                else:
+                    floor_plan_data['square_footage'] = None
+                if floor_plan_data.get('bedrooms') and floor_plan_data['bedrooms'].strip():
                     floor_plan_data['bedrooms'] = int(floor_plan_data['bedrooms'])
-                if floor_plan_data.get('bathrooms'):
+                else:
+                    floor_plan_data['bedrooms'] = None
+                if floor_plan_data.get('bathrooms') and floor_plan_data['bathrooms'].strip():
                     floor_plan_data['bathrooms'] = float(floor_plan_data['bathrooms'])
-                if floor_plan_data.get('garage_spaces'):
+                else:
+                    floor_plan_data['bathrooms'] = None
+                if floor_plan_data.get('garage_spaces') and floor_plan_data['garage_spaces'].strip():
                     floor_plan_data['garage_spaces'] = int(floor_plan_data['garage_spaces'])
-                if floor_plan_data.get('starting_price'):
-                    floor_plan_data['starting_price'] = float(floor_plan_data['starting_price'])
-                # Validate required fields
-                required_fields = ['name', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'garage_spaces', 'availability_status']
-                for field in required_fields:
-                    if field not in floor_plan_data or floor_plan_data[field] in [None, '']:
-                        raise serializers.ValidationError(f"Floor plan missing required field: {field}")
+                else:
+                    floor_plan_data['garage_spaces'] = None
+
+                # Only validate that house_type and availability_status are present (they have defaults)
+                if not floor_plan_data.get('house_type'):
+                    floor_plan_data['house_type'] = 'Single Family'
+                if not floor_plan_data.get('availability_status'):
+                    floor_plan_data['availability_status'] = 'Available'
+                
+                # Handle file for new floor plan
+                if plan_file:
+                    floor_plan_data['plan_file'] = plan_file
+                
                 floor_plan = FloorPlan.objects.create(project=project, **floor_plan_data)
                 created_floor_plans[floor_plan.id] = floor_plan
             except Exception as e:
@@ -250,23 +266,35 @@ class ProjectSerializer(serializers.ModelSerializer):
                 logging.error(f"Error creating floor plan: {e}")
                 raise serializers.ValidationError(f"Error creating floor plan: {e}")
         
-        # Create lots with lot numbers handling and floor plan associations
+        # Create lots with floor plan associations
         for lot_data in lots_data:
-            lot_numbers_list = lot_data.pop('lot_numbers_list', [])
             floor_plan_ids = lot_data.pop('floor_plan_ids', [])
             
-            # Convert string numbers to appropriate types
-            if lot_data.get('lot_size'):
-                lot_data['lot_size'] = float(lot_data['lot_size'])
-            if lot_data.get('price'):
-                lot_data['price'] = float(lot_data['price'])
+            # Handle file uploads - extract files from the request
+            lot_rendering = lot_data.pop('lot_rendering', None)
             
-            lot = Lot.objects.create(project=project, **lot_data)
-            if lot_numbers_list:
-                lot.set_lot_numbers_list(lot_numbers_list)
-                lot.save()
-            if floor_plan_ids:
-                lot.floor_plans.set(floor_plan_ids)
+            try:
+                # Convert string numbers to appropriate types (only if not empty)
+                if lot_data.get('lot_size') and lot_data['lot_size'].strip():
+                    lot_data['lot_size'] = float(lot_data['lot_size'])
+                else:
+                    lot_data['lot_size'] = None
+                if lot_data.get('price') and lot_data['price'].strip():
+                    lot_data['price'] = float(lot_data['price'])
+                else:
+                    lot_data['price'] = None
+                
+                # Handle lot rendering file
+                if lot_rendering:
+                    lot_data['lot_rendering'] = lot_rendering
+                
+                lot = Lot.objects.create(project=project, **lot_data)
+                if floor_plan_ids:
+                    lot.floor_plans.set(floor_plan_ids)
+            except Exception as e:
+                import logging
+                logging.error(f"Error creating lot: {e}")
+                raise serializers.ValidationError(f"Error creating lot: {e}")
         
         # Create documents
         for document_data in uploaded_documents:
@@ -305,16 +333,31 @@ class ProjectSerializer(serializers.ModelSerializer):
         newly_created_floor_plan_ids = set()
         for plan_data in floor_plans_data:
             plan_id = plan_data.get('id')
+            
+            # Handle file uploads - extract files from the request
+            plan_file = plan_data.pop('plan_file', None)
+            existing_plan_file = plan_data.pop('existing_plan_file', None)
+            
             if plan_id:
                 try:
                     floor_plan = FloorPlan.objects.get(id=plan_id, project=instance)
                     for attr, value in plan_data.items():
                         if attr != 'id' and hasattr(floor_plan, attr):
-                            if attr in ['square_footage', 'bedrooms', 'garage_spaces'] and value:
+                            if attr in ['square_footage', 'bedrooms', 'garage_spaces'] and value and str(value).strip():
                                 value = int(value)
-                            elif attr in ['bathrooms', 'starting_price'] and value:
+                            elif attr in ['bathrooms'] and value and str(value).strip():
                                 value = float(value)
+                            elif attr in ['square_footage', 'bedrooms', 'bathrooms', 'garage_spaces'] and (not value or str(value).strip() == ''):
+                                value = None
                             setattr(floor_plan, attr, value)
+                    
+                    # Handle file updates
+                    if plan_file:
+                        floor_plan.plan_file = plan_file
+                    elif existing_plan_file:
+                        # Keep existing file
+                        pass
+                    
                     floor_plan.save()
                     existing_floor_plan_ids.add(plan_id)
                 except Exception as e:
@@ -323,20 +366,33 @@ class ProjectSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError(f"Error updating floor plan: {e}")
             else:
                 try:
-                    if plan_data.get('square_footage'):
+                    # Convert string numbers to appropriate types (only if not empty)
+                    if plan_data.get('square_footage') and plan_data['square_footage'].strip():
                         plan_data['square_footage'] = int(plan_data['square_footage'])
-                    if plan_data.get('bedrooms'):
+                    else:
+                        plan_data['square_footage'] = None
+                    if plan_data.get('bedrooms') and plan_data['bedrooms'].strip():
                         plan_data['bedrooms'] = int(plan_data['bedrooms'])
-                    if plan_data.get('bathrooms'):
+                    else:
+                        plan_data['bedrooms'] = None
+                    if plan_data.get('bathrooms') and plan_data['bathrooms'].strip():
                         plan_data['bathrooms'] = float(plan_data['bathrooms'])
-                    if plan_data.get('garage_spaces'):
+                    else:
+                        plan_data['bathrooms'] = None
+                    if plan_data.get('garage_spaces') and plan_data['garage_spaces'].strip():
                         plan_data['garage_spaces'] = int(plan_data['garage_spaces'])
-                    if plan_data.get('starting_price'):
-                        plan_data['starting_price'] = float(plan_data['starting_price'])
-                    required_fields = ['name', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'garage_spaces', 'availability_status']
-                    for field in required_fields:
-                        if field not in plan_data or plan_data[field] in [None, '']:
-                            raise serializers.ValidationError(f"Floor plan missing required field: {field}")
+                    else:
+                        plan_data['garage_spaces'] = None
+                    # Only validate that house_type and availability_status are present (they have defaults)
+                    if not plan_data.get('house_type'):
+                        plan_data['house_type'] = 'Single Family'
+                    if not plan_data.get('availability_status'):
+                        plan_data['availability_status'] = 'Available'
+                    
+                    # Handle file for new floor plan
+                    if plan_file:
+                        plan_data['plan_file'] = plan_file
+                    
                     new_floor_plan = FloorPlan.objects.create(project=instance, **plan_data)
                     newly_created_floor_plan_ids.add(new_floor_plan.id)
                 except Exception as e:
@@ -351,8 +407,11 @@ class ProjectSerializer(serializers.ModelSerializer):
         existing_lot_ids = set()
         for lot_data in lots_data:
             lot_id = lot_data.get('id')
-            lot_numbers_list = lot_data.pop('lot_numbers_list', [])
             floor_plan_ids = lot_data.pop('floor_plan_ids', [])
+            
+            # Handle file uploads - extract files from the request
+            lot_rendering = lot_data.pop('lot_rendering', None)
+            existing_rendering = lot_data.pop('existing_rendering', None)
             
             if lot_id:
                 # Update existing lot
@@ -360,14 +419,22 @@ class ProjectSerializer(serializers.ModelSerializer):
                     lot = Lot.objects.get(id=lot_id, project=instance)
                     for attr, value in lot_data.items():
                         if attr != 'id' and hasattr(lot, attr):
-                            # Convert string numbers to appropriate types
-                            if attr in ['lot_size'] and value:
+                            # Convert string numbers to appropriate types (only if not empty)
+                            if attr in ['lot_size'] and value and str(value).strip():
                                 value = float(value)
-                            elif attr in ['price'] and value:
+                            elif attr in ['price'] and value and str(value).strip():
                                 value = float(value)
+                            elif attr in ['lot_size', 'price'] and (not value or str(value).strip() == ''):
+                                value = None
                             setattr(lot, attr, value)
-                    if lot_numbers_list:
-                        lot.set_lot_numbers_list(lot_numbers_list)
+                    
+                    # Handle lot rendering file
+                    if lot_rendering:
+                        lot.lot_rendering = lot_rendering
+                    elif existing_rendering:
+                        # Keep existing rendering
+                        pass
+                    
                     lot.save()
                     if floor_plan_ids:
                         lot.floor_plans.set(floor_plan_ids)
@@ -376,22 +443,32 @@ class ProjectSerializer(serializers.ModelSerializer):
                     continue
             else:
                 # Create new lot
-                # Convert string numbers to appropriate types
-                if lot_data.get('lot_size'):
-                    lot_data['lot_size'] = float(lot_data['lot_size'])
-                if lot_data.get('price'):
-                    lot_data['price'] = float(lot_data['price'])
-                
-                lot = Lot.objects.create(project=instance, **lot_data)
-                if lot_numbers_list:
-                    lot.set_lot_numbers_list(lot_numbers_list)
-                    lot.save()
-                if floor_plan_ids:
-                    lot.floor_plans.set(floor_plan_ids)
+                try:
+                    # Convert string numbers to appropriate types (only if not empty)
+                    if lot_data.get('lot_size') and lot_data['lot_size'].strip():
+                        lot_data['lot_size'] = float(lot_data['lot_size'])
+                    else:
+                        lot_data['lot_size'] = None
+                    if lot_data.get('price') and lot_data['price'].strip():
+                        lot_data['price'] = float(lot_data['price'])
+                    else:
+                        lot_data['price'] = None
+                    
+                    # Handle lot rendering file
+                    if lot_rendering:
+                        lot_data['lot_rendering'] = lot_rendering
+                    
+                    lot = Lot.objects.create(project=instance, **lot_data)
+                    if floor_plan_ids:
+                        lot.floor_plans.set(floor_plan_ids)
+                    existing_lot_ids.add(lot.id)
+                except Exception as e:
+                    import logging
+                    logging.error(f"Error creating lot: {e}")
+                    raise serializers.ValidationError(f"Error creating lot: {e}")
         
         # Delete lots that are no longer in the data
-        current_lot_ids = {lot['id'] for lot in lots_data if lot.get('id')}
-        instance.lots.exclude(id__in=current_lot_ids).delete()
+        instance.lots.exclude(id__in=existing_lot_ids).delete()
         
         # Handle documents
         for document_data in uploaded_documents:

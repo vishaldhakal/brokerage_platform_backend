@@ -89,14 +89,13 @@ class FloorPlan(models.Model):
     ]
     
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='floor_plans')
-    name = models.CharField(max_length=200, help_text="Name of the floor plan")
+    name = models.CharField(max_length=200, help_text="Name of the floor plan", blank=True, null=True)
     house_type = models.CharField(max_length=50, choices=HOUSE_TYPE_CHOICES, default='Single Family')
-    square_footage = models.PositiveIntegerField(help_text="Total square footage")
-    bedrooms = models.PositiveIntegerField(validators=[MinValueValidator(0), MaxValueValidator(10)])
-    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(20)])
-    garage_spaces = models.PositiveIntegerField(default=0, help_text="Number of garage spaces")
+    square_footage = models.PositiveIntegerField(help_text="Total square footage", blank=True, null=True)
+    bedrooms = models.PositiveIntegerField(validators=[MinValueValidator(0), MaxValueValidator(10)], blank=True, null=True)
+    bathrooms = models.DecimalField(max_digits=3, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(20)], blank=True, null=True)
+    garage_spaces = models.PositiveIntegerField(default=0, help_text="Number of garage spaces", blank=True, null=True)
     availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
-    starting_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
     plan_file = models.FileField(upload_to='floor_plans/', blank=True, null=True, help_text="Floor plan file (PDF or image)")
 
     class Meta:
@@ -220,8 +219,11 @@ class Project(SlugMixin, models.Model):
     # Meta Information
     is_featured = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        ordering = ['-updated_at']  # Last updated on top (newest first)
         verbose_name_plural = "Projects"
 
     def __str__(self):

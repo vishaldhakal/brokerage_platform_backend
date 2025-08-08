@@ -188,32 +188,30 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
             
             # Handle lots (both existing and new)
             lots_data = []
-            for key, value in request.data.items():
-                if key.startswith('lots[') and key.endswith(']'):
-                    try:
-                        lot_data = json.loads(value)
-                        # Handle lot rendering file
-                        lot_rendering_key = key.replace(']', '.lot_rendering]')
+            if 'lots' in request.data:
+                try:
+                    lots_data = json.loads(request.data['lots'])
+                    # Handle lot rendering files - they should be in request.FILES with keys like 'lots[0].lot_rendering'
+                    for i, lot_data in enumerate(lots_data):
+                        lot_rendering_key = f'lots[{i}].lot_rendering'
                         if lot_rendering_key in request.FILES:
                             lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
-                        lots_data.append(lot_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    lots_data = []
             data['lots'] = lots_data
             
             # Handle floor plans (both existing and new)
             floor_plans_data = []
-            for key, value in request.data.items():
-                if key.startswith('floor_plans[') and key.endswith(']'):
-                    try:
-                        plan_data = json.loads(value)
-                        # Handle plan file
-                        plan_file_key = key.replace(']', '.plan_file]')
+            if 'floor_plans' in request.data:
+                try:
+                    floor_plans_data = json.loads(request.data['floor_plans'])
+                    # Handle plan files - they should be in request.FILES with keys like 'floor_plans[0].plan_file'
+                    for i, plan_data in enumerate(floor_plans_data):
+                        plan_file_key = f'floor_plans[{i}].plan_file'
                         if plan_file_key in request.FILES:
                             plan_data['plan_file'] = request.FILES[plan_file_key]
-                        floor_plans_data.append(plan_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    floor_plans_data = []
             data['floor_plans'] = floor_plans_data
             
             # Handle uploaded renderings

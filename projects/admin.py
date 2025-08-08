@@ -21,7 +21,7 @@ class LotInline(admin.TabularInline):
 class FloorPlanInline(admin.TabularInline):
     model = FloorPlan
     extra = 1
-    fields = ['name', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'garage_spaces', 'availability_status', 'starting_price', 'plan_file']
+    fields = ['name', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'garage_spaces', 'availability_status', 'plan_file']
 
 class DocumentInline(admin.TabularInline):
     model = Document
@@ -130,7 +130,7 @@ class LotAdmin(ModelAdmin):
 
 @admin.register(FloorPlan)
 class FloorPlanAdmin(ModelAdmin):
-    list_display = ['name', 'project', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'availability_status', 'starting_price', 'has_plan_file']
+    list_display = ['name', 'project', 'house_type', 'square_footage', 'bedrooms', 'bathrooms', 'availability_status', 'has_plan_file']
     list_filter = ['house_type', 'availability_status', 'project']
     search_fields = ['name', 'project__name']
     ordering = ['project__name', 'name']

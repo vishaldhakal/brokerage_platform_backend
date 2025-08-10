@@ -4,7 +4,7 @@ from tinymce.widgets import TinyMCE
 from django.db import models
 from .models import (   
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Contact
+    Document, Project, Contact, Amenity
 )
 
 # Inline Admin Classes
@@ -82,6 +82,9 @@ class ProjectAdmin(ModelAdmin):
         ('Timeline Information', {
             'fields': ('occupancy', 'aps')
         }),
+        ('Amenities', {
+            'fields': ('amenities',)
+        }),
         ('Status', {
             'fields': ('is_featured', 'is_active')
         }),
@@ -102,6 +105,8 @@ class ProjectAdmin(ModelAdmin):
     formfield_overrides = {
         models.TextField: {'widget': TinyMCE()},
     }
+    
+    filter_horizontal = ['amenities']
 
 @admin.register(Rendering)
 class RenderingAdmin(ModelAdmin):
@@ -162,6 +167,14 @@ class ContactAdmin(ModelAdmin):
     list_filter = ['project']
     search_fields = ['name', 'email', 'project__name']
     ordering = ['project__name', 'order', 'name']
+
+@admin.register(Amenity)
+class AmenityAdmin(ModelAdmin):
+    list_display = ['name', 'category', 'icon', 'is_active', 'order']
+    list_filter = ['category', 'is_active']
+    search_fields = ['name', 'description']
+    ordering = ['category', 'order', 'name']
+    list_editable = ['order', 'is_active']
 
 # Admin site customization
 admin.site.site_header = "Brokerage Platform Administration"

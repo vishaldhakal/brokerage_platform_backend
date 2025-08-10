@@ -119,6 +119,7 @@ class Lot(models.Model):
     availability_status = models.CharField(max_length=20, choices=AVAILABILITY_STATUS_CHOICES, default='Available')
     lot_size = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Lot size in square feet")
     price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    est_completion = models.CharField(max_length=100, blank=True, help_text="Estimated completion (e.g., 'Spring 2024', 'Q2 2024')")
     description = models.TextField(blank=True)
     lot_rendering = models.FileField(upload_to='lot_renderings/', blank=True, help_text="Rendering image for this specific lot")
     floor_plans = models.ManyToManyField(FloorPlan, blank=True, help_text="Available floor plans for this lot")
@@ -168,6 +169,33 @@ class Document(models.Model):
     def __str__(self):
         return f"{self.title} ({self.document_type})"
 
+class Amenity(models.Model):
+    CATEGORY_CHOICES = [
+        ('Recreation', 'Recreation'),
+        ('Fitness', 'Fitness'),
+        ('Community', 'Community'),
+        ('Security', 'Security'),
+        ('Transportation', 'Transportation'),
+        ('Lifestyle', 'Lifestyle'),
+        ('Technology', 'Technology'),
+        ('Environment', 'Environment'),
+        ('Other', 'Other'),
+    ]
+    
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='Other')
+    icon = models.CharField(max_length=50, blank=True, help_text="Icon class name or emoji")
+    is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['category', 'order', 'name']
+        verbose_name_plural = "Amenities"
+    
+    def __str__(self):
+        return self.name
+
 class Project(SlugMixin, models.Model):
     PROJECT_TYPE_CHOICES = [
         ('Single Family', 'Single Family'),
@@ -215,6 +243,9 @@ class Project(SlugMixin, models.Model):
     # Timeline Information
     occupancy = models.TextField(blank=True, help_text="Occupancy timeline and details")
     aps = models.TextField(blank=True, help_text="APS (Agreement of Purchase and Sale) details")
+    
+    # Amenities
+    amenities = models.ManyToManyField(Amenity, blank=True, help_text="Available amenities for this project")
     
     # Meta Information
     is_featured = models.BooleanField(default=False)

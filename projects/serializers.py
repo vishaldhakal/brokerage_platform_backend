@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Contact
+    Document, Project, Contact, Amenity
 )
 
 class StateSerializer(serializers.ModelSerializer):
@@ -122,6 +122,11 @@ class ContactSerializer(serializers.ModelSerializer):
         model = Contact
         fields = '__all__'
 
+class AmenitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amenity
+        fields = '__all__'
+
 class ProjectSerializer(serializers.ModelSerializer):
     # Nested serializers for related objects
     renderings = RenderingSerializer(many=True, read_only=True)
@@ -130,6 +135,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     floor_plans_data = FloorPlanSerializer(many=True, read_only=True, source='floor_plans')
     documents = DocumentSerializer(many=True, read_only=True)
     contacts = ContactSerializer(many=True, read_only=True)
+    amenities = AmenitySerializer(many=True, read_only=True)
     
     def to_representation(self, instance):
         """Override to debug contacts field"""
@@ -218,6 +224,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
+    
+    # Amenities data
+    amenity_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
 
     class Meta:
         model = Project
@@ -236,6 +250,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
         contacts_data = validated_data.pop('contacts', [])
+        amenity_ids = validated_data.pop('amenity_ids', [])
         
         # Ensure city_id is properly set
         if 'city_id' in validated_data:
@@ -313,6 +328,12 @@ class ProjectSerializer(serializers.ModelSerializer):
                 else:
                     lot_data['price'] = None
                 
+                # Handle est_completion text field
+                if lot_data.get('est_completion'):
+                    lot_data['est_completion'] = str(lot_data['est_completion']).strip()
+                else:
+                    lot_data['est_completion'] = ""
+                
                 # Handle lot rendering file
                 if lot_rendering:
                     lot_data['lot_rendering'] = lot_rendering
@@ -333,6 +354,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         for contact_data in contacts_data:
             Contact.objects.create(project=project, **contact_data)
         
+        # Set amenities
+        if amenity_ids:
+            project.amenities.set(amenity_ids)
+        
         return project
 
     def update(self, instance, validated_data):
@@ -347,6 +372,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
         contacts_data = validated_data.pop('contacts', [])
+        amenity_ids = validated_data.pop('amenity_ids', [])
         
         # Update basic fields
         for attr, value in validated_data.items():
@@ -468,6 +494,11 @@ class ProjectSerializer(serializers.ModelSerializer):
                                 value = float(value)
                             elif attr in ['lot_size', 'price'] and (not value or str(value).strip() == ''):
                                 value = None
+                            elif attr == 'est_completion':
+                                if value:
+                                    value = str(value).strip()
+                                else:
+                                    value = ""
                             setattr(lot, attr, value)
                     
                     # Handle lot rendering file
@@ -495,6 +526,12 @@ class ProjectSerializer(serializers.ModelSerializer):
                         lot_data['price'] = float(lot_data['price'])
                     else:
                         lot_data['price'] = None
+                    
+                    # Handle est_completion text field
+                    if lot_data.get('est_completion'):
+                        lot_data['est_completion'] = str(lot_data['est_completion']).strip()
+                    else:
+                        lot_data['est_completion'] = ""
                     
                     # Handle lot rendering file
                     if lot_rendering:
@@ -544,6 +581,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         
         # Delete contacts that are no longer in the data
         instance.contacts.exclude(id__in=existing_contact_ids).delete()
+        
+        # Set amenities
+        if amenity_ids is not None:
+            instance.amenities.set(amenity_ids)
         
         return instance
 

@@ -41,4 +41,8 @@ urlpatterns = [
     # Document endpoints
     path('documents/', views.DocumentListCreateView.as_view(), name='document-list'),
     path('documents/<int:pk>/', views.DocumentDetailView.as_view(), name='document-detail'),
+    
+    # Amenity endpoints
+    path('amenities/', views.AmenityListCreateView.as_view(), name='amenity-list'),
+    path('amenities/<int:pk>/', views.AmenityDetailView.as_view(), name='amenity-detail'),
 ]

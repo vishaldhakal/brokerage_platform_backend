@@ -1,4 +1,4 @@
-from django.shortcuts import render
+
 from rest_framework import generics, filters, status
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -6,12 +6,12 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project
+    Document, Project, Amenity
 )
 from .serializers import (
     StateSerializer, CitySerializer,
     RenderingSerializer, SitePlanSerializer, LotSerializer, FloorPlanSerializer,
-    DocumentSerializer, ProjectSerializer,
+    DocumentSerializer, ProjectSerializer, AmenitySerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
 )
 import json
@@ -132,6 +132,14 @@ class ProjectListCreateView(generics.ListCreateAPIView):
                     contacts_data = []
             data['contacts'] = contacts_data
             
+            # Handle amenity_ids
+            if 'amenity_ids' in request.data:
+                try:
+                    amenity_ids = json.loads(request.data['amenity_ids'])
+                    data['amenity_ids'] = amenity_ids
+                except json.JSONDecodeError:
+                    data['amenity_ids'] = []
+            
             # Handle uploaded renderings
             uploaded_renderings = []
             for key, value in request.FILES.items():
@@ -195,32 +203,34 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                 else:
                     data[key] = value
             
-            # Handle lots (both existing and new)
+            # Handle lots (both existing and new) - similar to create method
             lots_data = []
-            if 'lots' in request.data:
-                try:
-                    lots_data = json.loads(request.data['lots'])
-                    # Handle lot rendering files - they should be in request.FILES with keys like 'lots[0].lot_rendering'
-                    for i, lot_data in enumerate(lots_data):
-                        lot_rendering_key = f'lots[{i}].lot_rendering'
+            for key, value in request.data.items():
+                if key.startswith('lots[') and key.endswith(']'):
+                    try:
+                        lot_data = json.loads(value)
+                        # Handle lot rendering file
+                        lot_rendering_key = key.replace(']', '.lot_rendering]')
                         if lot_rendering_key in request.FILES:
                             lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
-                except json.JSONDecodeError:
-                    lots_data = []
+                        lots_data.append(lot_data)
+                    except json.JSONDecodeError:
+                        continue
             data['lots'] = lots_data
             
-            # Handle floor plans (both existing and new)
+            # Handle floor plans (both existing and new) - similar to create method
             floor_plans_data = []
-            if 'floor_plans' in request.data:
-                try:
-                    floor_plans_data = json.loads(request.data['floor_plans'])
-                    # Handle plan files - they should be in request.FILES with keys like 'floor_plans[0].plan_file'
-                    for i, plan_data in enumerate(floor_plans_data):
-                        plan_file_key = f'floor_plans[{i}].plan_file'
+            for key, value in request.data.items():
+                if key.startswith('floor_plans[') and key.endswith(']'):
+                    try:
+                        plan_data = json.loads(value)
+                        # Handle plan file
+                        plan_file_key = key.replace(']', '.plan_file]')
                         if plan_file_key in request.FILES:
                             plan_data['plan_file'] = request.FILES[plan_file_key]
-                except json.JSONDecodeError:
-                    floor_plans_data = []
+                        floor_plans_data.append(plan_data)
+                    except json.JSONDecodeError:
+                        continue
             data['floor_plans'] = floor_plans_data
             
             # Handle contacts
@@ -231,6 +241,14 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                 except json.JSONDecodeError:
                     contacts_data = []
             data['contacts'] = contacts_data
+            
+            # Handle amenity_ids
+            if 'amenity_ids' in request.data:
+                try:
+                    amenity_ids = json.loads(request.data['amenity_ids'])
+                    data['amenity_ids'] = amenity_ids
+                except json.JSONDecodeError:
+                    data['amenity_ids'] = []
             
             # Handle uploaded renderings
             uploaded_renderings = []
@@ -390,3 +408,17 @@ class CityProjectsView(generics.ListAPIView):
         ).select_related('city').prefetch_related(
             'renderings', 'lots', 'floor_plans', 'contacts'
         )
+
+# Amenity Views
+class AmenityListCreateView(generics.ListCreateAPIView):
+    queryset = Amenity.objects.filter(is_active=True)
+    serializer_class = AmenitySerializer
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
+    search_fields = ['name', 'description', 'category']
+    filterset_fields = ['category', 'is_active']
+    ordering_fields = ['name', 'category', 'order']
+    ordering = ['category', 'order', 'name']
+
+class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Amenity.objects.all()
+    serializer_class = AmenitySerializer

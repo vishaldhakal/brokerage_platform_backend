@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project
+    Document, Project, Contact
 )
 
 class StateSerializer(serializers.ModelSerializer):
@@ -116,6 +116,12 @@ class DocumentSerializer(serializers.ModelSerializer):
             return obj.document.url
         return None
 
+
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = '__all__'
+
 class ProjectSerializer(serializers.ModelSerializer):
     # Nested serializers for related objects
     renderings = RenderingSerializer(many=True, read_only=True)
@@ -123,6 +129,20 @@ class ProjectSerializer(serializers.ModelSerializer):
     lots_data = LotSerializer(many=True, read_only=True, source='lots')
     floor_plans_data = FloorPlanSerializer(many=True, read_only=True, source='floor_plans')
     documents = DocumentSerializer(many=True, read_only=True)
+    contacts = ContactSerializer(many=True, read_only=True)
+    
+    def to_representation(self, instance):
+        """Override to debug contacts field"""
+        data = super().to_representation(instance)
+        # Debug: Check if contacts exist
+        try:
+            contacts_count = instance.contacts.count()
+            print(f"Debug: Project {instance.name} has {contacts_count} contacts")
+            data['contacts'] = ContactSerializer(instance.contacts.all(), many=True, context=self.context).data
+        except Exception as e:
+            print(f"Debug: Error getting contacts for {instance.name}: {e}")
+            data['contacts'] = []
+        return data
     
     # Related object serializers
     city = CitySerializer(read_only=True)
@@ -190,6 +210,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
+    
+    # Contacts data
+    contacts = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
 
     class Meta:
         model = Project
@@ -207,6 +235,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Extract new data structure
         lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
+        contacts_data = validated_data.pop('contacts', [])
         
         # Ensure city_id is properly set
         if 'city_id' in validated_data:
@@ -300,6 +329,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         for document_data in uploaded_documents:
             Document.objects.create(project=project, **document_data)
         
+        # Create contacts
+        for contact_data in contacts_data:
+            Contact.objects.create(project=project, **contact_data)
+        
         return project
 
     def update(self, instance, validated_data):
@@ -311,6 +344,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Extract update data (for both existing and new items)
         lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
+        contacts_data = validated_data.pop('contacts', [])
         
         # Update basic fields
         for attr, value in validated_data.items():
@@ -473,6 +507,29 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Handle documents
         for document_data in uploaded_documents:
             Document.objects.create(project=instance, **document_data)
+        
+        # Handle contacts (both existing and new)
+        existing_contact_ids = set()
+        for contact_data in contacts_data:
+            contact_id = contact_data.get('id')
+            if contact_id:
+                # Update existing contact
+                try:
+                    contact = Contact.objects.get(id=contact_id, project=instance)
+                    for attr, value in contact_data.items():
+                        if attr != 'id' and hasattr(contact, attr):
+                            setattr(contact, attr, value)
+                    contact.save()
+                    existing_contact_ids.add(contact_id)
+                except Contact.DoesNotExist:
+                    continue
+            else:
+                # Create new contact
+                contact = Contact.objects.create(project=instance, **contact_data)
+                existing_contact_ids.add(contact.id)
+        
+        # Delete contacts that are no longer in the data
+        instance.contacts.exclude(id__in=existing_contact_ids).delete()
         
         # Handle existing files (keep them)
         # The existing_images and existing_documents lists are used to preserve files

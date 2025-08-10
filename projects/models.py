@@ -240,3 +240,18 @@ class Project(SlugMixin, models.Model):
     @property
     def total_floor_plans(self):
         return self.floor_plans.count()
+
+
+class Contact(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='contacts')
+    name = models.CharField(max_length=200)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name_plural = "Contacts"
+    
+    def __str__(self):
+        return f"{self.name} - {self.project.name}"

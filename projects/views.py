@@ -62,7 +62,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         queryset = super().get_queryset()
         # Add prefetch_related for better performance
         return queryset.select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts'
         )
     
     def get_serializer_context(self):
@@ -123,6 +123,15 @@ class ProjectListCreateView(generics.ListCreateAPIView):
                         continue
             data['floor_plans'] = floor_plans_data
             
+            # Handle contacts - JSON approach for consistency
+            contacts_data = []
+            if 'contacts' in request.data:
+                try:
+                    contacts_data = json.loads(request.data['contacts'])
+                except json.JSONDecodeError:
+                    contacts_data = []
+            data['contacts'] = contacts_data
+            
             # Handle uploaded renderings
             uploaded_renderings = []
             for key, value in request.FILES.items():
@@ -160,7 +169,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts'
         )
     
     def get_serializer_context(self):
@@ -213,6 +222,15 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                 except json.JSONDecodeError:
                     floor_plans_data = []
             data['floor_plans'] = floor_plans_data
+            
+            # Handle contacts
+            contacts_data = []
+            if 'contacts' in request.data:
+                try:
+                    contacts_data = json.loads(request.data['contacts'])
+                except json.JSONDecodeError:
+                    contacts_data = []
+            data['contacts'] = contacts_data
             
             # Handle uploaded renderings
             uploaded_renderings = []
@@ -357,7 +375,7 @@ class FeaturedProjectsView(generics.ListAPIView):
     
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans'
+            'renderings', 'lots', 'floor_plans', 'contacts'
         )
 
 # City Projects View
@@ -370,5 +388,5 @@ class CityProjectsView(generics.ListAPIView):
             city__slug=city_slug, 
             is_active=True
         ).select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans'
+            'renderings', 'lots', 'floor_plans', 'contacts'
         )

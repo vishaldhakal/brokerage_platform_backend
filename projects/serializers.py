@@ -340,6 +340,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         uploaded_renderings = validated_data.pop('uploaded_renderings', [])
         uploaded_site_plan = validated_data.pop('uploaded_site_plan', {})
         uploaded_documents = validated_data.pop('uploaded_documents', [])
+        existing_images = validated_data.pop('existing_images', [])
+        existing_documents = validated_data.pop('existing_documents', [])
         
         # Extract update data (for both existing and new items)
         lots_data = validated_data.pop('lots', [])
@@ -351,7 +353,13 @@ class ProjectSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         
-        # Handle renderings
+        # Handle renderings - delete removed ones and add new ones
+        # If existing_images is provided, only keep those renderings
+        if existing_images is not None:
+            # Delete renderings that are not in the existing_images list
+            instance.renderings.exclude(id__in=existing_images).delete()
+        
+        # Add new renderings
         for rendering_data in uploaded_renderings:
             Rendering.objects.create(project=instance, **rendering_data)
         
@@ -504,7 +512,13 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Delete lots that are no longer in the data
         instance.lots.exclude(id__in=existing_lot_ids).delete()
         
-        # Handle documents
+        # Handle documents - delete removed ones and add new ones
+        # If existing_documents is provided, only keep those documents
+        if existing_documents is not None:
+            # Delete documents that are not in the existing_documents list
+            instance.documents.exclude(id__in=existing_documents).delete()
+        
+        # Add new documents
         for document_data in uploaded_documents:
             Document.objects.create(project=instance, **document_data)
         
@@ -530,9 +544,6 @@ class ProjectSerializer(serializers.ModelSerializer):
         
         # Delete contacts that are no longer in the data
         instance.contacts.exclude(id__in=existing_contact_ids).delete()
-        
-        # Handle existing files (keep them)
-        # The existing_images and existing_documents lists are used to preserve files
         
         return instance
 

@@ -111,6 +111,7 @@ class Lot(models.Model):
         ('Reserved', 'Reserved'),
         ('Sold', 'Sold'),
         ('Coming Soon', 'Coming Soon'),
+        ('Move In Ready', 'Move In Ready'), 
     ]
     
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='lots')

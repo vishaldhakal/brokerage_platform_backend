@@ -14,7 +14,6 @@ from .serializers import (
     DocumentSerializer, ProjectSerializer, AmenitySerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
 )
-import json
 
 # State Views
 class StateListCreateView(generics.ListCreateAPIView):
@@ -95,32 +94,64 @@ class ProjectListCreateView(generics.ListCreateAPIView):
             
             # Handle lots (both existing and new)
             lots_data = []
-            for key, value in request.data.items():
-                if key.startswith('lots[') and key.endswith(']'):
-                    try:
-                        lot_data = json.loads(value)
-                        # Handle lot rendering file
-                        lot_rendering_key = key.replace(']', '.lot_rendering]')
+            
+            # First, try to get lots as a JSON array (new format)
+            if 'lots' in request.data:
+                try:
+                    lots_data = json.loads(request.data['lots'])
+                    # Handle lot rendering files for each lot
+                    for index, lot_data in enumerate(lots_data):
+                        lot_rendering_key = f'lots[{index}].lot_rendering'
                         if lot_rendering_key in request.FILES:
                             lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
-                        lots_data.append(lot_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    lots_data = []
+            
+            # If no lots JSON found, fall back to individual lots[index] fields (legacy format)
+            if not lots_data:
+                for key, value in request.data.items():
+                    if key.startswith('lots[') and key.endswith(']'):
+                        try:
+                            lot_data = json.loads(value)
+                            # Handle lot rendering file
+                            lot_rendering_key = key.replace(']', '.lot_rendering]')
+                            if lot_rendering_key in request.FILES:
+                                lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
+                            lots_data.append(lot_data)
+                        except json.JSONDecodeError:
+                            continue
+            
             data['lots'] = lots_data
             
             # Handle floor plans (both existing and new)
             floor_plans_data = []
-            for key, value in request.data.items():
-                if key.startswith('floor_plans[') and key.endswith(']'):
-                    try:
-                        plan_data = json.loads(value)
-                        # Handle plan file
-                        plan_file_key = key.replace(']', '.plan_file]')
+            
+            # First, try to get floor_plans as a JSON array (new format)
+            if 'floor_plans' in request.data:
+                try:
+                    floor_plans_data = json.loads(request.data['floor_plans'])
+                    # Handle plan files for each floor plan
+                    for index, plan_data in enumerate(floor_plans_data):
+                        plan_file_key = f'floor_plans[{index}].plan_file'
                         if plan_file_key in request.FILES:
                             plan_data['plan_file'] = request.FILES[plan_file_key]
-                        floor_plans_data.append(plan_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    floor_plans_data = []
+            
+            # If no floor_plans JSON found, fall back to individual floor_plans[index] fields (legacy format)
+            if not floor_plans_data:
+                for key, value in request.data.items():
+                    if key.startswith('floor_plans[') and key.endswith(']'):
+                        try:
+                            plan_data = json.loads(value)
+                            # Handle plan file
+                            plan_file_key = key.replace(']', '.plan_file]')
+                            if plan_file_key in request.FILES:
+                                plan_data['plan_file'] = request.FILES[plan_file_key]
+                            floor_plans_data.append(plan_data)
+                        except json.JSONDecodeError:
+                            continue
+            
             data['floor_plans'] = floor_plans_data
             
             # Handle contacts - JSON approach for consistency
@@ -205,32 +236,64 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
             
             # Handle lots (both existing and new) - similar to create method
             lots_data = []
-            for key, value in request.data.items():
-                if key.startswith('lots[') and key.endswith(']'):
-                    try:
-                        lot_data = json.loads(value)
-                        # Handle lot rendering file
-                        lot_rendering_key = key.replace(']', '.lot_rendering]')
+            
+            # First, try to get lots as a JSON array (new format)
+            if 'lots' in request.data:
+                try:
+                    lots_data = json.loads(request.data['lots'])
+                    # Handle lot rendering files for each lot
+                    for index, lot_data in enumerate(lots_data):
+                        lot_rendering_key = f'lots[{index}].lot_rendering'
                         if lot_rendering_key in request.FILES:
                             lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
-                        lots_data.append(lot_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    lots_data = []
+            
+            # If no lots JSON found, fall back to individual lots[index] fields (legacy format)
+            if not lots_data:
+                for key, value in request.data.items():
+                    if key.startswith('lots[') and key.endswith(']'):
+                        try:
+                            lot_data = json.loads(value)
+                            # Handle lot rendering file
+                            lot_rendering_key = key.replace(']', '.lot_rendering]')
+                            if lot_rendering_key in request.FILES:
+                                lot_data['lot_rendering'] = request.FILES[lot_rendering_key]
+                            lots_data.append(lot_data)
+                        except json.JSONDecodeError:
+                            continue
+            
             data['lots'] = lots_data
             
             # Handle floor plans (both existing and new) - similar to create method
             floor_plans_data = []
-            for key, value in request.data.items():
-                if key.startswith('floor_plans[') and key.endswith(']'):
-                    try:
-                        plan_data = json.loads(value)
-                        # Handle plan file
-                        plan_file_key = key.replace(']', '.plan_file]')
+            
+            # First, try to get floor_plans as a JSON array (new format)
+            if 'floor_plans' in request.data:
+                try:
+                    floor_plans_data = json.loads(request.data['floor_plans'])
+                    # Handle plan files for each floor plan
+                    for index, plan_data in enumerate(floor_plans_data):
+                        plan_file_key = f'floor_plans[{index}].plan_file'
                         if plan_file_key in request.FILES:
                             plan_data['plan_file'] = request.FILES[plan_file_key]
-                        floor_plans_data.append(plan_data)
-                    except json.JSONDecodeError:
-                        continue
+                except json.JSONDecodeError:
+                    floor_plans_data = []
+            
+            # If no floor_plans JSON found, fall back to individual floor_plans[index] fields (legacy format)
+            if not floor_plans_data:
+                for key, value in request.data.items():
+                    if key.startswith('floor_plans[') and key.endswith(']'):
+                        try:
+                            plan_data = json.loads(value)
+                            # Handle plan file
+                            plan_file_key = key.replace(']', '.plan_file]')
+                            if plan_file_key in request.FILES:
+                                plan_data['plan_file'] = request.FILES[plan_file_key]
+                            floor_plans_data.append(plan_data)
+                        except json.JSONDecodeError:
+                            continue
+            
             data['floor_plans'] = floor_plans_data
             
             # Handle contacts

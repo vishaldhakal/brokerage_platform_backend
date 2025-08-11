@@ -148,24 +148,18 @@ class Lot(models.Model):
 
 class Document(models.Model):
     DOCUMENT_TYPE_CHOICES = [
-        ('Brochure', 'Brochure'),
-        ('Fact Sheet', 'Fact Sheet'),
-        ('Floor Plan', 'Floor Plan'),
-        ('Site Plan', 'Site Plan'),
-        ('Contract', 'Contract'),
-        ('Disclosure', 'Disclosure'),
-        ('Permit', 'Permit'),
-        ('Other', 'Other'),
+        ('Document', 'Document & Legal'),
+        ('Marketing Material', 'Marketing Material'),
     ]
     
     title = models.CharField(max_length=200)
-    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES, default='Other')
+    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES, default='Document')
     document = models.FileField(upload_to='documents/')
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='documents', blank=True, null=True)
-    description = models.TextField(blank=True)
 
     class Meta:
         verbose_name_plural = "Documents"
+        ordering = ['document_type', 'title']
 
     def __str__(self):
         return f"{self.title} ({self.document_type})"

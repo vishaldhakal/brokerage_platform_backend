@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import transaction
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
     Document, Project, Contact, Amenity
@@ -67,10 +68,19 @@ class LotSerializer(serializers.ModelSerializer):
         source='floor_plans',
         required=False
     )
+    project_name = serializers.CharField(source='project.name', read_only=True)
     
     class Meta:
         model = Lot
         fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at', 'project']
+        extra_kwargs = {
+            'lot_rendering': {'required': False, 'allow_null': True},
+            'lot_size': {'required': False, 'allow_null': True},
+            'price': {'required': False, 'allow_null': True},
+            'est_completion': {'required': False, 'allow_blank': True},
+            'description': {'required': False, 'allow_blank': True},
+        }
     
     def get_lot_rendering_url(self, obj):
         if obj.lot_rendering:
@@ -100,6 +110,11 @@ class LotSerializer(serializers.ModelSerializer):
             instance.set_lot_numbers_list(lot_numbers_list)
             instance.save()
         return instance
+    
+    def validate(self, attrs):
+        # Remove project from validation since it will be set by the view
+        attrs.pop('project', None)
+        return attrs
 
 class DocumentSerializer(serializers.ModelSerializer):
     document_url = serializers.SerializerMethodField()
@@ -134,8 +149,18 @@ class ProjectSerializer(serializers.ModelSerializer):
     lots_data = LotSerializer(many=True, read_only=True, source='lots')
     floor_plans_data = FloorPlanSerializer(many=True, read_only=True, source='floor_plans')
     documents = DocumentSerializer(many=True, read_only=True)
+    legal_documents = serializers.SerializerMethodField()
+    marketing_documents = serializers.SerializerMethodField()
     contacts = ContactSerializer(many=True, read_only=True)
     amenities = AmenitySerializer(many=True, read_only=True)
+    
+    def get_legal_documents(self, obj):
+        legal_docs = obj.documents.filter(document_type='Document')
+        return DocumentSerializer(legal_docs, many=True, context=self.context).data
+    
+    def get_marketing_documents(self, obj):
+        marketing_docs = obj.documents.filter(document_type='Marketing Material')
+        return DocumentSerializer(marketing_docs, many=True, context=self.context).data
     
     def to_representation(self, instance):
         """Override to debug contacts field"""
@@ -172,19 +197,20 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
-    uploaded_lots = serializers.ListField(
-        child=serializers.DictField(),
-        write_only=True,
-        required=False,
-        allow_empty=True
-    )
+
     uploaded_floor_plans = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
         required=False,
         allow_empty=True
     )
-    uploaded_documents = serializers.ListField(
+    uploaded_legal_documents = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    uploaded_marketing_documents = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
         required=False,
@@ -192,12 +218,6 @@ class ProjectSerializer(serializers.ModelSerializer):
     )
     
     # Update fields for handling both existing and new data
-    lots = serializers.ListField(
-        child=serializers.DictField(),
-        write_only=True,
-        required=False,
-        allow_empty=True
-    )
     floor_plans = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
@@ -210,7 +230,13 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
-    existing_documents = serializers.ListField(
+    existing_legal_documents = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    existing_marketing_documents = serializers.ListField(
         child=serializers.IntegerField(),
         write_only=True,
         required=False,
@@ -232,6 +258,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
+    # Explicit deletions
+    deleted_floor_plan_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+
 
     class Meta:
         model = Project
@@ -244,10 +278,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Extract data
         uploaded_renderings = validated_data.pop('uploaded_renderings', [])
         uploaded_site_plan = validated_data.pop('uploaded_site_plan', {})
-        uploaded_documents = validated_data.pop('uploaded_documents', [])
+        uploaded_legal_documents = validated_data.pop('uploaded_legal_documents', [])
+        uploaded_marketing_documents = validated_data.pop('uploaded_marketing_documents', [])
         
         # Extract new data structure
-        lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
         contacts_data = validated_data.pop('contacts', [])
         amenity_ids = validated_data.pop('amenity_ids', [])
@@ -310,44 +344,12 @@ class ProjectSerializer(serializers.ModelSerializer):
                 logging.error(f"Error creating floor plan: {e}")
                 raise serializers.ValidationError(f"Error creating floor plan: {e}")
         
-        # Create lots with floor plan associations
-        for lot_data in lots_data:
-            floor_plan_ids = lot_data.pop('floor_plan_ids', [])
-            
-            # Handle file uploads - extract files from the request
-            lot_rendering = lot_data.pop('lot_rendering', None)
-            
-            try:
-                # Convert string numbers to appropriate types (only if not empty)
-                if lot_data.get('lot_size') and lot_data['lot_size'].strip():
-                    lot_data['lot_size'] = float(lot_data['lot_size'])
-                else:
-                    lot_data['lot_size'] = None
-                if lot_data.get('price') and lot_data['price'].strip():
-                    lot_data['price'] = float(lot_data['price'])
-                else:
-                    lot_data['price'] = None
-                
-                # Handle est_completion text field
-                if lot_data.get('est_completion'):
-                    lot_data['est_completion'] = str(lot_data['est_completion']).strip()
-                else:
-                    lot_data['est_completion'] = ""
-                
-                # Handle lot rendering file
-                if lot_rendering:
-                    lot_data['lot_rendering'] = lot_rendering
-                
-                lot = Lot.objects.create(project=project, **lot_data)
-                if floor_plan_ids:
-                    lot.floor_plans.set(floor_plan_ids)
-            except Exception as e:
-                import logging
-                logging.error(f"Error creating lot: {e}")
-                raise serializers.ValidationError(f"Error creating lot: {e}")
+        # Create legal documents
+        for document_data in uploaded_legal_documents:
+            Document.objects.create(project=project, **document_data)
         
-        # Create documents
-        for document_data in uploaded_documents:
+        # Create marketing documents
+        for document_data in uploaded_marketing_documents:
             Document.objects.create(project=project, **document_data)
         
         # Create contacts
@@ -364,15 +366,17 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Extract data
         uploaded_renderings = validated_data.pop('uploaded_renderings', [])
         uploaded_site_plan = validated_data.pop('uploaded_site_plan', {})
-        uploaded_documents = validated_data.pop('uploaded_documents', [])
+        uploaded_legal_documents = validated_data.pop('uploaded_legal_documents', [])
+        uploaded_marketing_documents = validated_data.pop('uploaded_marketing_documents', [])
         existing_images = validated_data.pop('existing_images', [])
-        existing_documents = validated_data.pop('existing_documents', [])
+        existing_legal_documents = validated_data.pop('existing_legal_documents', [])
+        existing_marketing_documents = validated_data.pop('existing_marketing_documents', [])
         
         # Extract update data (for both existing and new items)
-        lots_data = validated_data.pop('lots', [])
         floor_plans_data = validated_data.pop('floor_plans', [])
         contacts_data = validated_data.pop('contacts', [])
         amenity_ids = validated_data.pop('amenity_ids', [])
+        deleted_floor_plan_ids = validated_data.pop('deleted_floor_plan_ids', [])
         
         # Update basic fields
         for attr, value in validated_data.items():
@@ -460,103 +464,48 @@ class ProjectSerializer(serializers.ModelSerializer):
                     # Handle file for new floor plan
                     if plan_file:
                         plan_data['plan_file'] = plan_file
-                    
-                    new_floor_plan = FloorPlan.objects.create(project=instance, **plan_data)
-                    newly_created_floor_plan_ids.add(new_floor_plan.id)
+
+                    # De-duplication: if a floor plan with same name already exists for this project, update it
+                    existing_by_name = None
+                    name_value = plan_data.get('name')
+                    if name_value:
+                        existing_by_name = FloorPlan.objects.filter(project=instance, name=name_value).first()
+
+                    if existing_by_name:
+                        for attr, value in plan_data.items():
+                            if hasattr(existing_by_name, attr):
+                                setattr(existing_by_name, attr, value)
+                        existing_by_name.save()
+                        newly_created_floor_plan_ids.add(existing_by_name.id)
+                    else:
+                        new_floor_plan = FloorPlan.objects.create(project=instance, **plan_data)
+                        newly_created_floor_plan_ids.add(new_floor_plan.id)
                 except Exception as e:
                     import logging
                     logging.error(f"Error creating floor plan: {e}")
                     raise serializers.ValidationError(f"Error creating floor plan: {e}")
-        # Merge both sets before deletion
-        all_floor_plan_ids_to_keep = existing_floor_plan_ids | newly_created_floor_plan_ids
-        instance.floor_plans.exclude(id__in=all_floor_plan_ids_to_keep).delete()
+        # Only delete floor plans explicitly requested for deletion
+        if deleted_floor_plan_ids:
+            instance.floor_plans.filter(id__in=deleted_floor_plan_ids).delete()
         
-        # Handle lots (both existing and new)
-        existing_lot_ids = set()
-        for lot_data in lots_data:
-            lot_id = lot_data.get('id')
-            floor_plan_ids = lot_data.pop('floor_plan_ids', [])
-            
-            # Handle file uploads - extract files from the request
-            lot_rendering = lot_data.pop('lot_rendering', None)
-            existing_rendering = lot_data.pop('existing_rendering', None)
-            
-            if lot_id:
-                # Update existing lot
-                try:
-                    lot = Lot.objects.get(id=lot_id, project=instance)
-                    for attr, value in lot_data.items():
-                        if attr != 'id' and hasattr(lot, attr):
-                            # Convert string numbers to appropriate types (only if not empty)
-                            if attr in ['lot_size'] and value and str(value).strip():
-                                value = float(value)
-                            elif attr in ['price'] and value and str(value).strip():
-                                value = float(value)
-                            elif attr in ['lot_size', 'price'] and (not value or str(value).strip() == ''):
-                                value = None
-                            elif attr == 'est_completion':
-                                if value:
-                                    value = str(value).strip()
-                                else:
-                                    value = ""
-                            setattr(lot, attr, value)
-                    
-                    # Handle lot rendering file
-                    if lot_rendering:
-                        lot.lot_rendering = lot_rendering
-                    elif existing_rendering:
-                        # Keep existing rendering
-                        pass
-                    
-                    lot.save()
-                    if floor_plan_ids:
-                        lot.floor_plans.set(floor_plan_ids)
-                    existing_lot_ids.add(lot_id)
-                except Lot.DoesNotExist:
-                    continue
-            else:
-                # Create new lot
-                try:
-                    # Convert string numbers to appropriate types (only if not empty)
-                    if lot_data.get('lot_size') and lot_data['lot_size'].strip():
-                        lot_data['lot_size'] = float(lot_data['lot_size'])
-                    else:
-                        lot_data['lot_size'] = None
-                    if lot_data.get('price') and lot_data['price'].strip():
-                        lot_data['price'] = float(lot_data['price'])
-                    else:
-                        lot_data['price'] = None
-                    
-                    # Handle est_completion text field
-                    if lot_data.get('est_completion'):
-                        lot_data['est_completion'] = str(lot_data['est_completion']).strip()
-                    else:
-                        lot_data['est_completion'] = ""
-                    
-                    # Handle lot rendering file
-                    if lot_rendering:
-                        lot_data['lot_rendering'] = lot_rendering
-                    
-                    lot = Lot.objects.create(project=instance, **lot_data)
-                    if floor_plan_ids:
-                        lot.floor_plans.set(floor_plan_ids)
-                    existing_lot_ids.add(lot.id)
-                except Exception as e:
-                    import logging
-                    logging.error(f"Error creating lot: {e}")
-                    raise serializers.ValidationError(f"Error creating lot: {e}")
+
         
-        # Delete lots that are no longer in the data
-        instance.lots.exclude(id__in=existing_lot_ids).delete()
+        # Handle legal documents - delete removed ones and add new ones
+        if existing_legal_documents is not None:
+            # Delete legal documents that are not in the existing_legal_documents list
+            instance.documents.filter(document_type='Document').exclude(id__in=existing_legal_documents).delete()
         
-        # Handle documents - delete removed ones and add new ones
-        # If existing_documents is provided, only keep those documents
-        if existing_documents is not None:
-            # Delete documents that are not in the existing_documents list
-            instance.documents.exclude(id__in=existing_documents).delete()
+        # Add new legal documents
+        for document_data in uploaded_legal_documents:
+            Document.objects.create(project=instance, **document_data)
         
-        # Add new documents
-        for document_data in uploaded_documents:
+        # Handle marketing documents - delete removed ones and add new ones
+        if existing_marketing_documents is not None:
+            # Delete marketing documents that are not in the existing_marketing_documents list
+            instance.documents.filter(document_type='Marketing Material').exclude(id__in=existing_marketing_documents).delete()
+        
+        # Add new marketing documents
+        for document_data in uploaded_marketing_documents:
             Document.objects.create(project=instance, **document_data)
         
         # Handle contacts (both existing and new)

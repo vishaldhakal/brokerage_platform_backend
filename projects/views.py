@@ -14,6 +14,7 @@ from .serializers import (
     DocumentSerializer, ProjectSerializer, AmenitySerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
 )
+from django.shortcuts import get_object_or_404
 
 # State Views
 class StateListCreateView(generics.ListCreateAPIView):
@@ -178,12 +179,54 @@ class ProjectListCreateView(generics.ListCreateAPIView):
                     uploaded_renderings.append({'image': value})
             data['uploaded_renderings'] = uploaded_renderings
             
-            # Handle uploaded documents
-            uploaded_documents = []
+            # Handle uploaded legal documents
+            uploaded_legal_documents = []
+            legal_doc_titles = {}
+            for key, value in request.data.items():
+                if key.startswith('uploaded_legal_documents_titles['):
+                    index = key.split('[')[1].split(']')[0]
+                    legal_doc_titles[int(index)] = value
+            
             for key, value in request.FILES.items():
-                if key == 'uploaded_documents':
-                    uploaded_documents.append({'document': value})
-            data['uploaded_documents'] = uploaded_documents
+                if key == 'uploaded_legal_documents':
+                    doc_index = len(uploaded_legal_documents)
+                    uploaded_legal_documents.append({
+                        'document': value,
+                        'title': legal_doc_titles.get(doc_index, ''),
+                        'document_type': 'Document'
+                    })
+            data['uploaded_legal_documents'] = uploaded_legal_documents
+            
+            # Handle uploaded marketing documents
+            uploaded_marketing_documents = []
+            marketing_doc_titles = {}
+            for key, value in request.data.items():
+                if key.startswith('uploaded_marketing_documents_titles['):
+                    index = key.split('[')[1].split(']')[0]
+                    marketing_doc_titles[int(index)] = value
+            
+            for key, value in request.FILES.items():
+                if key == 'uploaded_marketing_documents':
+                    doc_index = len(uploaded_marketing_documents)
+                    uploaded_marketing_documents.append({
+                        'document': value,
+                        'title': marketing_doc_titles.get(doc_index, ''),
+                        'document_type': 'Marketing Material'
+                    })
+            data['uploaded_marketing_documents'] = uploaded_marketing_documents
+            
+            # Handle existing document IDs
+            if 'existing_legal_documents' in request.data:
+                try:
+                    data['existing_legal_documents'] = json.loads(request.data['existing_legal_documents'])
+                except json.JSONDecodeError:
+                    data['existing_legal_documents'] = []
+            
+            if 'existing_marketing_documents' in request.data:
+                try:
+                    data['existing_marketing_documents'] = json.loads(request.data['existing_marketing_documents'])
+                except json.JSONDecodeError:
+                    data['existing_marketing_documents'] = []
             
             # Debug: Print final data
             print("Final data for serializer:", data)
@@ -295,6 +338,18 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                             continue
             
             data['floor_plans'] = floor_plans_data
+
+            # Explicit deletions (optional)
+            if 'deleted_floor_plan_ids' in request.data:
+                try:
+                    data['deleted_floor_plan_ids'] = json.loads(request.data['deleted_floor_plan_ids'])
+                except json.JSONDecodeError:
+                    data['deleted_floor_plan_ids'] = []
+            if 'deleted_lot_ids' in request.data:
+                try:
+                    data['deleted_lot_ids'] = json.loads(request.data['deleted_lot_ids'])
+                except json.JSONDecodeError:
+                    data['deleted_lot_ids'] = []
             
             # Handle contacts
             contacts_data = []
@@ -320,26 +375,60 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                     uploaded_renderings.append({'image': value})
             data['uploaded_renderings'] = uploaded_renderings
             
-            # Handle uploaded documents
-            uploaded_documents = []
+            # Handle uploaded legal documents
+            uploaded_legal_documents = []
+            legal_doc_titles = {}
+            for key, value in request.data.items():
+                if key.startswith('uploaded_legal_documents_titles['):
+                    index = key.split('[')[1].split(']')[0]
+                    legal_doc_titles[int(index)] = value
+            
             for key, value in request.FILES.items():
-                if key == 'uploaded_documents':
-                    uploaded_documents.append({'document': value})
-            data['uploaded_documents'] = uploaded_documents
+                if key == 'uploaded_legal_documents':
+                    doc_index = len(uploaded_legal_documents)
+                    uploaded_legal_documents.append({
+                        'document': value,
+                        'title': legal_doc_titles.get(doc_index, ''),
+                        'document_type': 'Document'
+                    })
+            data['uploaded_legal_documents'] = uploaded_legal_documents
+            
+            # Handle uploaded marketing documents
+            uploaded_marketing_documents = []
+            marketing_doc_titles = {}
+            for key, value in request.data.items():
+                if key.startswith('uploaded_marketing_documents_titles['):
+                    index = key.split('[')[1].split(']')[0]
+                    marketing_doc_titles[int(index)] = value
+            
+            for key, value in request.FILES.items():
+                if key == 'uploaded_marketing_documents':
+                    doc_index = len(uploaded_marketing_documents)
+                    uploaded_marketing_documents.append({
+                        'document': value,
+                        'title': marketing_doc_titles.get(doc_index, ''),
+                        'document_type': 'Marketing Material'
+                    })
+            data['uploaded_marketing_documents'] = uploaded_marketing_documents
             
             # Handle existing files
             existing_images = request.data.get('existing_images', '[]')
-            existing_documents = request.data.get('existing_documents', '[]')
+            existing_legal_documents = request.data.get('existing_legal_documents', '[]')
+            existing_marketing_documents = request.data.get('existing_marketing_documents', '[]')
             
             try:
                 data['existing_images'] = json.loads(existing_images)
-                data['existing_documents'] = json.loads(existing_documents)
+                data['existing_legal_documents'] = json.loads(existing_legal_documents)
+                data['existing_marketing_documents'] = json.loads(existing_marketing_documents)
             except json.JSONDecodeError:
                 data['existing_images'] = []
-                data['existing_documents'] = []
+                data['existing_legal_documents'] = []
+                data['existing_marketing_documents'] = []
             
             # Debug: Print final data
             print("Update - Final data for serializer:", data)
+            print("Update - Deleted lot IDs:", data.get('deleted_lot_ids', []))
+            print("Update - Deleted floor plan IDs:", data.get('deleted_floor_plan_ids', []))
             
             serializer = self.get_serializer(self.get_object(), data=data, partial=True)
             serializer.is_valid(raise_exception=True)
@@ -382,15 +471,51 @@ class SitePlanDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # Lot Views
 class LotListCreateView(generics.ListCreateAPIView):
-    queryset = Lot.objects.all()
-    serializer_class = LotListSerializer
+    serializer_class = LotSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['lot_number', 'project__name']
     filterset_fields = ['project', 'availability_status']
+    
+
+
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        if project_slug:
+            return Lot.objects.filter(project__slug=project_slug).order_by('lot_number')
+        return Lot.objects.all().order_by('lot_number')
+
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        if project_slug:
+            project = get_object_or_404(Project, slug=project_slug)
+            serializer.save(project=project)
+        else:
+            serializer.save()
 
 class LotDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Lot.objects.all()
     serializer_class = LotSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        if project_slug:
+            return Lot.objects.filter(project__slug=project_slug)
+        return Lot.objects.all()
+
+    def perform_update(self, serializer):
+        # Handle lot rendering file separately
+        lot_rendering = self.request.FILES.get('lot_rendering')
+        if lot_rendering:
+            serializer.instance.lot_rendering = lot_rendering
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # Delete the lot rendering file if it exists
+        if instance.lot_rendering:
+            instance.lot_rendering.delete(save=False)
+        instance.delete()
 
 # Floor Plan Views
 class FloorPlanListCreateView(generics.ListCreateAPIView):
@@ -435,12 +560,15 @@ class ProjectFloorPlansView(generics.ListAPIView):
         project_slug = self.kwargs.get('project_slug')
         return FloorPlan.objects.filter(project__slug=project_slug).order_by('name')
 
+# Project-specific lot views
 class ProjectLotsView(generics.ListAPIView):
     serializer_class = LotSerializer
     
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
         return Lot.objects.filter(project__slug=project_slug).order_by('lot_number')
+
+
 
 class ProjectDocumentsView(generics.ListAPIView):
     serializer_class = DocumentSerializer

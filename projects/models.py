@@ -50,7 +50,7 @@ class City(SlugMixin, models.Model):
         return f"{self.name}, {self.state.abbreviation}"
 
 class Rendering(models.Model):
-    title = models.CharField(max_length=200, help_text="e.g., Kitchen, Living Room, Exterior")
+    title = models.CharField(max_length=200, blank=True, help_text="e.g., Kitchen, Living Room, Exterior")
     image = models.FileField(upload_to='renderings/')
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='renderings')
 
@@ -152,9 +152,9 @@ class Document(models.Model):
         ('Marketing Material', 'Marketing Material'),
     ]
     
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, blank=True)
     document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPE_CHOICES, default='Document')
-    document = models.FileField(upload_to='documents/')
+    document = models.FileField(upload_to='documents/', blank=True, null=True)
     project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='documents', blank=True, null=True)
 
     class Meta:
@@ -269,8 +269,8 @@ class Project(SlugMixin, models.Model):
 
 
 class Contact(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='contacts')
-    name = models.CharField(max_length=200)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='contacts', blank=True, null=True)
+    name = models.CharField(max_length=200, blank=True)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
     order = models.PositiveIntegerField(default=0)

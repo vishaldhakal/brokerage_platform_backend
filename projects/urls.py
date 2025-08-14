@@ -18,10 +18,24 @@ urlpatterns = [
     
     # Project-specific endpoints
     path('projects/<slug:project_slug>/renderings/', views.ProjectRenderingsView.as_view(), name='project-renderings'),
+    path('projects/<slug:project_slug>/renderings/create/', views.ProjectRenderingCreateView.as_view(), name='project-rendering-create'),
+    path('projects/<slug:project_slug>/renderings/<int:pk>/', views.ProjectRenderingDetailView.as_view(), name='project-rendering-detail'),
     path('projects/<slug:project_slug>/floor-plans/', views.ProjectFloorPlansView.as_view(), name='project-floor-plans'),
     path('projects/<slug:project_slug>/lots/', views.LotListCreateView.as_view(), name='project-lots'),
 
     path('projects/<slug:project_slug>/documents/', views.ProjectDocumentsView.as_view(), name='project-documents'),
+    
+    # New separate tab endpoints
+    path('projects/<slug:project_slug>/contacts/', views.ProjectContactsView.as_view(), name='project-contacts'),
+    path('projects/<slug:project_slug>/contacts/<int:pk>/', views.ContactDetailView.as_view(), name='project-contact-detail'),
+    path('projects/<slug:project_slug>/marketing-documents/', views.ProjectMarketingDocumentsView.as_view(), name='project-marketing-documents'),
+    path('projects/<slug:project_slug>/marketing-documents/<int:pk>/', views.MarketingDocumentDetailView.as_view(), name='project-marketing-document-detail'),
+    path('projects/<slug:project_slug>/legal-documents/', views.ProjectLegalDocumentsView.as_view(), name='project-legal-documents'),
+    path('projects/<slug:project_slug>/legal-documents/<int:pk>/', views.LegalDocumentDetailView.as_view(), name='project-legal-document-detail'),
+    
+    # Project-specific floor plan CRUD endpoints
+    path('projects/<slug:project_slug>/floor-plans/create/', views.ProjectFloorPlanCreateView.as_view(), name='project-floor-plan-create'),
+    path('projects/<slug:project_slug>/floor-plans/<int:pk>/', views.ProjectFloorPlanDetailView.as_view(), name='project-floor-plan-detail'),
     
     # Rendering endpoints
     path('renderings/', views.RenderingListCreateView.as_view(), name='rendering-list'),

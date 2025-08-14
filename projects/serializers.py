@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.db import transaction
+import json
 from .models import (
-    State, City, Rendering, SitePlan, Lot, FloorPlan, 
+    State, City, Rendering, SitePlan, Lot, FloorPlan,
     Document, Project, Contact, Amenity
 )
 
@@ -24,6 +25,10 @@ class RenderingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rendering
         fields = '__all__'
+        read_only_fields = ['project']  # Make project field read-only
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': True},
+        }
     
     def get_image_url(self, obj):
         if obj.image:
@@ -44,6 +49,7 @@ class FloorPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = FloorPlan
         fields = '__all__'
+        read_only_fields = ['project']  # Make project field read-only
     
     def get_plan_file_url(self, obj):
         if obj.plan_file:
@@ -53,6 +59,49 @@ class FloorPlanSerializer(serializers.ModelSerializer):
             return obj.plan_file.url
         return None
 
+class FloorPlanIdsFlexibleField(serializers.Field):
+    """Accepts either a JSON string (e.g. "[1,2]") or a Python list of ints.
+
+    Always returns a Python list of ints for internal value. Used as write-only.
+    """
+
+    def to_internal_value(self, data):
+        # Already a list → coerce elements to ints
+        if isinstance(data, list):
+            coerced: list[int] = []
+            for item in data:
+                try:
+                    coerced.append(int(item))
+                except (TypeError, ValueError):
+                    # skip invalid entries
+                    continue
+            return coerced
+
+        # FormData case: JSON string
+        if isinstance(data, str):
+            try:
+                parsed = json.loads(data)
+                if isinstance(parsed, list):
+                    coerced: list[int] = []
+                    for item in parsed:
+                        try:
+                            coerced.append(int(item))
+                        except (TypeError, ValueError):
+                            continue
+                    return coerced
+            except json.JSONDecodeError:
+                return []
+        # Any other type → empty
+        return []
+
+    def to_representation(self, value):
+        # Not used (write_only), but return list of IDs if ever called
+        try:
+            return [int(v) for v in value]
+        except Exception:
+            return []
+
+
 class LotSerializer(serializers.ModelSerializer):
     lot_numbers_list = serializers.ListField(
         child=serializers.CharField(),
@@ -61,13 +110,8 @@ class LotSerializer(serializers.ModelSerializer):
     )
     lot_rendering_url = serializers.SerializerMethodField()
     floor_plans = FloorPlanSerializer(many=True, read_only=True)
-    floor_plan_ids = serializers.PrimaryKeyRelatedField(
-        many=True,
-        write_only=True,
-        queryset=FloorPlan.objects.all(),
-        source='floor_plans',
-        required=False
-    )
+    # Accept list[int] for JSON, or JSON string for multipart
+    floor_plan_ids = FloorPlanIdsFlexibleField(write_only=True, required=False, source='floor_plans')
     project_name = serializers.CharField(source='project.name', read_only=True)
     
     class Meta:
@@ -94,27 +138,45 @@ class LotSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data['lot_numbers_list'] = instance.get_lot_numbers_list()
         return data
-    
+
     def create(self, validated_data):
+        # Remove floor_plans from validated_data if not present or empty
+        floor_plans = validated_data.pop('floor_plans', None)
         lot_numbers_list = self.context.get('lot_numbers_list', [])
         instance = super().create(validated_data)
         if lot_numbers_list:
             instance.set_lot_numbers_list(lot_numbers_list)
             instance.save()
+        # Set floor_plans if provided
+        if floor_plans is not None:
+            floor_plan_ids = floor_plans if isinstance(floor_plans, list) else []
+            instance.floor_plans.set(FloorPlan.objects.filter(id__in=floor_plan_ids))
         return instance
-    
+
     def update(self, instance, validated_data):
+        # Remove floor_plans from validated_data if not present or empty
+        floor_plans = validated_data.pop('floor_plans', None)
         lot_numbers_list = self.context.get('lot_numbers_list', [])
         instance = super().update(instance, validated_data)
         if lot_numbers_list:
             instance.set_lot_numbers_list(lot_numbers_list)
             instance.save()
+        # Set floor_plans if provided
+        if floor_plans is not None:
+            floor_plan_ids = floor_plans if isinstance(floor_plans, list) else []
+            instance.floor_plans.set(FloorPlan.objects.filter(id__in=floor_plan_ids))
         return instance
-    
+
     def validate(self, attrs):
         # Remove project from validation since it will be set by the view
         attrs.pop('project', None)
+        # Normalize empty lists
+        floor_plans = attrs.get('floor_plans', None)
+        if floor_plans == []:
+            attrs['floor_plans'] = []
         return attrs
+
+
 
 class DocumentSerializer(serializers.ModelSerializer):
     document_url = serializers.SerializerMethodField()
@@ -122,6 +184,10 @@ class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = '__all__'
+        extra_kwargs = {
+            'document': {'required': False},
+            'title': {'required': False, 'allow_blank': True},
+        }
     
     def get_document_url(self, obj):
         if obj.document:
@@ -135,7 +201,18 @@ class DocumentSerializer(serializers.ModelSerializer):
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
-        fields = '__all__'
+        fields = ['id', 'name', 'email', 'phone', 'order', 'project']
+        extra_kwargs = {
+            'project': {'read_only': True},
+            'name': {'required': False, 'allow_blank': True},
+            'email': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True},
+            'order': {'required': False},
+        }
+    
+    def validate(self, data):
+        print(f"ContactSerializer validate called with data: {data}")
+        return data
 
 class AmenitySerializer(serializers.ModelSerializer):
     class Meta:
@@ -429,6 +506,11 @@ class ProjectSerializer(serializers.ModelSerializer):
                     elif existing_plan_file:
                         # Keep existing file
                         pass
+                    elif plan_data.get('plan_file') and plan_data['plan_file'].get('markedForDeletion'):
+                        # Remove the file if marked for deletion
+                        if floor_plan.plan_file:
+                            floor_plan.plan_file.delete(save=False)
+                        floor_plan.plan_file = None
                     
                     floor_plan.save()
                     existing_floor_plan_ids.add(plan_id)

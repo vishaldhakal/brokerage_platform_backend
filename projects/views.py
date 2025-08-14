@@ -6,12 +6,12 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Amenity
+    Document, Project, Amenity, Contact
 )
 from .serializers import (
     StateSerializer, CitySerializer,
     RenderingSerializer, SitePlanSerializer, LotSerializer, FloorPlanSerializer,
-    DocumentSerializer, ProjectSerializer, AmenitySerializer,
+    DocumentSerializer, ProjectSerializer, AmenitySerializer, ContactSerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
 )
 from django.shortcuts import get_object_or_404
@@ -521,7 +521,7 @@ class LotDetailView(generics.RetrieveUpdateDestroyAPIView):
 class FloorPlanListCreateView(generics.ListCreateAPIView):
     queryset = FloorPlan.objects.all()
     serializer_class = FloorPlanListSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ['name', 'project__name']
     filterset_fields = ['project', 'house_type', 'availability_status']
@@ -529,7 +529,7 @@ class FloorPlanListCreateView(generics.ListCreateAPIView):
 class FloorPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = FloorPlan.objects.all()
     serializer_class = FloorPlanSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 # Document Views
 class DocumentListCreateView(generics.ListCreateAPIView):
@@ -553,12 +553,69 @@ class ProjectRenderingsView(generics.ListAPIView):
         project_slug = self.kwargs.get('project_slug')
         return Rendering.objects.filter(project__slug=project_slug).order_by('title')
 
+class ProjectRenderingCreateView(generics.CreateAPIView):
+    serializer_class = RenderingSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def create(self, request, *args, **kwargs):
+        print("ProjectRenderingCreateView - Received data:", request.data)
+        print("ProjectRenderingCreateView - Received files:", request.FILES)
+        print("ProjectRenderingCreateView - Content type:", request.content_type)
+        print("ProjectRenderingCreateView - Project slug:", self.kwargs.get('project_slug'))
+        return super().create(request, *args, **kwargs)
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        print("ProjectRenderingCreateView - Saving rendering for project:", project.name)
+        serializer.save(project=project)
+        print("ProjectRenderingCreateView - Rendering saved successfully")
+
+class ProjectRenderingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RenderingSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Rendering.objects.filter(project__slug=project_slug)
+
 class ProjectFloorPlansView(generics.ListAPIView):
     serializer_class = FloorPlanSerializer
     
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
         return FloorPlan.objects.filter(project__slug=project_slug).order_by('name')
+
+class ProjectFloorPlanCreateView(generics.CreateAPIView):
+    serializer_class = FloorPlanSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def create(self, request, *args, **kwargs):
+        print("ProjectFloorPlanCreateView - Received data:", request.data)
+        print("ProjectFloorPlanCreateView - Received files:", request.FILES)
+        print("ProjectFloorPlanCreateView - Content type:", request.content_type)
+        print("ProjectFloorPlanCreateView - Project field value:", request.data.get('project'))
+        print("ProjectFloorPlanCreateView - Project field type:", type(request.data.get('project')))
+        return super().create(request, *args, **kwargs)
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        serializer.save(project=project)
+
+class ProjectFloorPlanDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = FloorPlanSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def update(self, request, *args, **kwargs):
+        print("ProjectFloorPlanDetailView - Received data:", request.data)
+        print("ProjectFloorPlanDetailView - Received files:", request.FILES)
+        print("ProjectFloorPlanDetailView - Content type:", request.content_type)
+        return super().update(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return FloorPlan.objects.filter(project__slug=project_slug)
 
 # Project-specific lot views
 class ProjectLotsView(generics.ListAPIView):
@@ -576,6 +633,86 @@ class ProjectDocumentsView(generics.ListAPIView):
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
         return Document.objects.filter(project__slug=project_slug)
+
+# New separate tab views
+class ProjectContactsView(generics.ListCreateAPIView):
+    serializer_class = ContactSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        return project.contacts.all().order_by('order')
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        print(f"Creating contact for project: {project.name} (slug: {project_slug})")
+        print(f"Contact data: {serializer.validated_data}")
+        serializer.save(project=project)
+
+class ProjectMarketingDocumentsView(generics.ListCreateAPIView):
+    serializer_class = DocumentSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Document.objects.filter(
+            project__slug=project_slug,
+            document_type='marketing'
+        ).order_by('title')
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        serializer.save(project=project, document_type='marketing')
+
+class ProjectLegalDocumentsView(generics.ListCreateAPIView):
+    serializer_class = DocumentSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Document.objects.filter(
+            project__slug=project_slug,
+            document_type='legal'
+        ).order_by('title')
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        serializer.save(project=project, document_type='legal')
+
+# Detail views for individual items
+class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ContactSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Contact.objects.filter(project__slug=project_slug)
+
+class MarketingDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DocumentSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Document.objects.filter(
+            project__slug=project_slug,
+            document_type='marketing'
+        )
+
+class LegalDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = DocumentSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return Document.objects.filter(
+            project__slug=project_slug,
+            document_type='legal'
+        )
 
 # Featured Projects View
 class FeaturedProjectsView(generics.ListAPIView):

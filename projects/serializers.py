@@ -3,7 +3,7 @@ from django.db import transaction
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan,
-    Document, Project, Contact, Amenity
+    Document, Project, Contact, Amenity, FeatureFinish
 )
 
 class StateSerializer(serializers.ModelSerializer):
@@ -30,6 +30,25 @@ class RenderingSerializer(serializers.ModelSerializer):
             'title': {'required': False, 'allow_blank': True},
         }
     
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+class FeatureFinishSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeatureFinish
+        fields = '__all__'
+        read_only_fields = ['project']
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': True},
+        }
+
     def get_image_url(self, obj):
         if obj.image:
             request = self.context.get('request')
@@ -229,6 +248,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     legal_documents = serializers.SerializerMethodField()
     marketing_documents = serializers.SerializerMethodField()
     contacts = ContactSerializer(many=True, read_only=True)
+    features_finishes = FeatureFinishSerializer(many=True, read_only=True)
     amenities = AmenitySerializer(many=True, read_only=True)
     
     def get_legal_documents(self, obj):
@@ -289,6 +309,20 @@ class ProjectSerializer(serializers.ModelSerializer):
     )
     uploaded_marketing_documents = serializers.ListField(
         child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    # Features & Finishes (write-only for create/update new projects)
+    # Mirror renderings write pattern for features & finishes images
+    uploaded_features_finishes = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    existing_features_finishes = serializers.ListField(
+        child=serializers.IntegerField(),
         write_only=True,
         required=False,
         allow_empty=True
@@ -366,7 +400,9 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Ensure city_id is properly set
         if 'city_id' in validated_data:
             validated_data['city_id'] = int(validated_data['city_id'])
-        
+        uploaded_features_finishes = validated_data.pop('uploaded_features_finishes', [])
+        existing_features_finishes = validated_data.pop('existing_features_finishes', [])
+
         # Create project
         project = Project.objects.create(**validated_data)
         
@@ -437,6 +473,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         if amenity_ids:
             project.amenities.set(amenity_ids)
         
+        # Create features & finishes (images)
+        for ff in uploaded_features_finishes:
+            FeatureFinish.objects.create(project=project, **ff)
+        
         return project
 
     def update(self, instance, validated_data):
@@ -454,7 +494,9 @@ class ProjectSerializer(serializers.ModelSerializer):
         contacts_data = validated_data.pop('contacts', [])
         amenity_ids = validated_data.pop('amenity_ids', [])
         deleted_floor_plan_ids = validated_data.pop('deleted_floor_plan_ids', [])
-        
+        uploaded_features_finishes = validated_data.pop('uploaded_features_finishes', [])
+        existing_features_finishes = validated_data.pop('existing_features_finishes', None)
+
         # Update basic fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -616,6 +658,14 @@ class ProjectSerializer(serializers.ModelSerializer):
         # Set amenities
         if amenity_ids is not None:
             instance.amenities.set(amenity_ids)
+        
+        # Delete removed features & finishes if client sent the list of ones to keep
+        if existing_features_finishes is not None:
+            instance.features_finishes.exclude(id__in=existing_features_finishes).delete()
+        
+        # Add newly uploaded features & finishes
+        for ff in uploaded_features_finishes:
+            FeatureFinish.objects.create(project=instance, **ff)
         
         return instance
 

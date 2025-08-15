@@ -61,6 +61,18 @@ class Rendering(models.Model):
     def __str__(self):
         return f"{self.title} - {self.project.name}"
 
+class FeatureFinish(models.Model):
+    title = models.CharField(max_length=200, blank=True, help_text="e.g., Kitchen Feature")
+    image = models.FileField(upload_to='features_finishes/', blank=True, null=True)
+    project = models.ForeignKey('Project', on_delete=models.CASCADE, related_name='features_finishes')
+
+    class Meta:
+        ordering = ['title']
+        verbose_name_plural = "Features & Finishes"
+
+    def __str__(self):
+        return f"{self.title} - {self.project.name}"
+
 class SitePlan(models.Model):
     project = models.OneToOneField('Project', on_delete=models.CASCADE, related_name='site_plan')
     file = models.FileField(upload_to='site_plans/', blank=True, null=True, help_text="Site plan file (PDF or image)")

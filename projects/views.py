@@ -6,13 +6,14 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Amenity, Contact
+    Document, Project, Amenity, Contact, FeatureFinish
 )
 from .serializers import (
     StateSerializer, CitySerializer,
     RenderingSerializer, SitePlanSerializer, LotSerializer, FloorPlanSerializer,
     DocumentSerializer, ProjectSerializer, AmenitySerializer, ContactSerializer,
-    ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer, LotListSerializer
+    ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer,
+    FeatureFinishSerializer
 )
 from django.shortcuts import get_object_or_404
 
@@ -62,7 +63,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         queryset = super().get_queryset()
         # Add prefetch_related for better performance
         return queryset.select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents', 'contacts'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
         )
     
     def get_serializer_context(self):
@@ -172,12 +173,26 @@ class ProjectListCreateView(generics.ListCreateAPIView):
                 except json.JSONDecodeError:
                     data['amenity_ids'] = []
             
+            # Handle Features & Finishes (JSON array)
+            if 'features_finishes_write' in request.data:
+                try:
+                    data['features_finishes_write'] = json.loads(request.data['features_finishes_write'])
+                except json.JSONDecodeError:
+                    data['features_finishes_write'] = []
+            
             # Handle uploaded renderings
             uploaded_renderings = []
             for key, value in request.FILES.items():
                 if key == 'uploaded_images':
                     uploaded_renderings.append({'image': value})
             data['uploaded_renderings'] = uploaded_renderings
+
+            # Handle uploaded features & finishes (images)
+            uploaded_features_finishes = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_features_finishes':
+                    uploaded_features_finishes.append({'image': value})
+            data['uploaded_features_finishes'] = uploaded_features_finishes
             
             # Handle uploaded legal documents
             uploaded_legal_documents = []
@@ -227,6 +242,12 @@ class ProjectListCreateView(generics.ListCreateAPIView):
                     data['existing_marketing_documents'] = json.loads(request.data['existing_marketing_documents'])
                 except json.JSONDecodeError:
                     data['existing_marketing_documents'] = []
+
+            if 'existing_features_finishes' in request.data:
+                try:
+                    data['existing_features_finishes'] = json.loads(request.data['existing_features_finishes'])
+                except json.JSONDecodeError:
+                    data['existing_features_finishes'] = []
             
             # Debug: Print final data
             print("Final data for serializer:", data)
@@ -251,7 +272,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents', 'contacts'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
         )
     
     def get_serializer_context(self):
@@ -368,12 +389,26 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                 except json.JSONDecodeError:
                     data['amenity_ids'] = []
             
+            # Handle Features & Finishes (JSON array)
+            if 'features_finishes_write' in request.data:
+                try:
+                    data['features_finishes_write'] = json.loads(request.data['features_finishes_write'])
+                except json.JSONDecodeError:
+                    data['features_finishes_write'] = []
+            
             # Handle uploaded renderings
             uploaded_renderings = []
             for key, value in request.FILES.items():
                 if key == 'uploaded_images':
                     uploaded_renderings.append({'image': value})
             data['uploaded_renderings'] = uploaded_renderings
+
+            # Handle uploaded features & finishes (images)
+            uploaded_features_finishes = []
+            for key, value in request.FILES.items():
+                if key == 'uploaded_features_finishes':
+                    uploaded_features_finishes.append({'image': value})
+            data['uploaded_features_finishes'] = uploaded_features_finishes
             
             # Handle uploaded legal documents
             uploaded_legal_documents = []
@@ -415,15 +450,18 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
             existing_images = request.data.get('existing_images', '[]')
             existing_legal_documents = request.data.get('existing_legal_documents', '[]')
             existing_marketing_documents = request.data.get('existing_marketing_documents', '[]')
+            existing_features_finishes = request.data.get('existing_features_finishes', '[]')
             
             try:
                 data['existing_images'] = json.loads(existing_images)
                 data['existing_legal_documents'] = json.loads(existing_legal_documents)
                 data['existing_marketing_documents'] = json.loads(existing_marketing_documents)
+                data['existing_features_finishes'] = json.loads(existing_features_finishes)
             except json.JSONDecodeError:
                 data['existing_images'] = []
                 data['existing_legal_documents'] = []
                 data['existing_marketing_documents'] = []
+                data['existing_features_finishes'] = []
             
             # Debug: Print final data
             print("Update - Final data for serializer:", data)
@@ -455,6 +493,21 @@ class RenderingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Rendering.objects.all()
     serializer_class = RenderingSerializer
     parser_classes = (MultiPartParser, FormParser)
+
+# Features & Finishes Views (mirror Rendering)
+class FeatureFinishListCreateView(generics.ListCreateAPIView):
+    queryset = FeatureFinish.objects.all()
+    serializer_class = FeatureFinishSerializer
+    parser_classes = (MultiPartParser, FormParser)
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
+    search_fields = ['title', 'project__name']
+    filterset_fields = ['project']
+
+class FeatureFinishDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = FeatureFinish.objects.all()
+    serializer_class = FeatureFinishSerializer
+    parser_classes = (MultiPartParser, FormParser)
+
 
 # Site Plan Views
 class SitePlanListCreateView(generics.ListCreateAPIView):
@@ -578,6 +631,30 @@ class ProjectRenderingDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         project_slug = self.kwargs.get('project_slug')
         return Rendering.objects.filter(project__slug=project_slug)
+
+class ProjectFeatureFinishesView(generics.ListAPIView):
+    serializer_class = FeatureFinishSerializer
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return FeatureFinish.objects.filter(project__slug=project_slug).order_by('title')
+
+class ProjectFeatureFinishCreateView(generics.CreateAPIView):
+    serializer_class = FeatureFinishSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        serializer.save(project=project)
+
+class ProjectFeatureFinishDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = FeatureFinishSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return FeatureFinish.objects.filter(project__slug=project_slug)
 
 class ProjectFloorPlansView(generics.ListAPIView):
     serializer_class = FloorPlanSerializer

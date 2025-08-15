@@ -4,7 +4,7 @@ from tinymce.widgets import TinyMCE
 from django.db import models
 from .models import (   
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Contact, Amenity
+    Document, Project, Contact, Amenity, FeatureFinish
 )
 
 # Inline Admin Classes
@@ -27,6 +27,10 @@ class DocumentInline(admin.TabularInline):
     model = Document
     extra = 1
     fields = ['title', 'document_type', 'document', 'description']
+
+class FeatureFinishInline(admin.TabularInline):
+    model = FeatureFinish
+    extra = 1
 
 class ContactInline(admin.TabularInline):
     model = Contact
@@ -99,6 +103,7 @@ class ProjectAdmin(ModelAdmin):
         LotInline,
         FloorPlanInline,
         DocumentInline,
+        FeatureFinishInline,
         ContactInline,
     ]
     
@@ -175,6 +180,8 @@ class AmenityAdmin(ModelAdmin):
     search_fields = ['name', 'description']
     ordering = ['category', 'order', 'name']
     list_editable = ['order', 'is_active']
+
+admin.site.register(FeatureFinish)
 
 # Admin site customization
 admin.site.site_header = "Brokerage Platform Administration"

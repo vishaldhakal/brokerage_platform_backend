@@ -20,6 +20,9 @@ urlpatterns = [
     path('projects/<slug:project_slug>/renderings/', views.ProjectRenderingsView.as_view(), name='project-renderings'),
     path('projects/<slug:project_slug>/renderings/create/', views.ProjectRenderingCreateView.as_view(), name='project-rendering-create'),
     path('projects/<slug:project_slug>/renderings/<int:pk>/', views.ProjectRenderingDetailView.as_view(), name='project-rendering-detail'),
+    path('projects/<slug:project_slug>/features-finishes/', views.ProjectFeatureFinishesView.as_view(), name='project-features-finishes'),
+    path('projects/<slug:project_slug>/features-finishes/create/', views.ProjectFeatureFinishCreateView.as_view(), name='project-feature-finish-create'),
+    path('projects/<slug:project_slug>/features-finishes/<int:pk>/', views.ProjectFeatureFinishDetailView.as_view(), name='project-feature-finish-detail'),
     path('projects/<slug:project_slug>/floor-plans/', views.ProjectFloorPlansView.as_view(), name='project-floor-plans'),
     path('projects/<slug:project_slug>/lots/', views.LotListCreateView.as_view(), name='project-lots'),
 
@@ -40,6 +43,9 @@ urlpatterns = [
     # Rendering endpoints
     path('renderings/', views.RenderingListCreateView.as_view(), name='rendering-list'),
     path('renderings/<int:pk>/', views.RenderingDetailView.as_view(), name='rendering-detail'),
+    # Feature & Finish endpoints
+    path('features-finishes/', views.FeatureFinishListCreateView.as_view(), name='feature-finish-list'),
+    path('features-finishes/<int:pk>/', views.FeatureFinishDetailView.as_view(), name='feature-finish-detail'),
     
     # Site Plan endpoints
     path('site-plans/', views.SitePlanListCreateView.as_view(), name='site-plan-list'),

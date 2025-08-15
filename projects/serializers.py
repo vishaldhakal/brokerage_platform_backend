@@ -64,6 +64,8 @@ class SitePlanSerializer(serializers.ModelSerializer):
 
 class FloorPlanSerializer(serializers.ModelSerializer):
     plan_file_url = serializers.SerializerMethodField()
+    # Allow explicit removal of an existing file via update API
+    plan_file_remove = serializers.BooleanField(write_only=True, required=False, default=False)
     
     class Meta:
         model = FloorPlan
@@ -77,6 +79,27 @@ class FloorPlanSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.plan_file.url)
             return obj.plan_file.url
         return None
+
+    def update(self, instance, validated_data):
+        # Handle explicit file removal
+        remove_flag = validated_data.pop('plan_file_remove', False)
+        if remove_flag and instance.plan_file:
+            try:
+                instance.plan_file.delete(save=False)
+            except Exception:
+                # ignore storage delete errors; continue with nulling field
+                pass
+            instance.plan_file = None
+
+        # Normalize empty numeric fields coming as empty strings
+        for key in ['square_footage', 'bedrooms', 'garage_spaces']:
+            if key in validated_data and (validated_data[key] == '' or validated_data[key] is None):
+                validated_data[key] = None
+        for key in ['bathrooms']:
+            if key in validated_data and (validated_data[key] == '' or validated_data[key] is None):
+                validated_data[key] = None
+
+        return super().update(instance, validated_data)
 
 class FloorPlanIdsFlexibleField(serializers.Field):
     """Accepts either a JSON string (e.g. "[1,2]") or a Python list of ints.

@@ -736,13 +736,13 @@ class ProjectMarketingDocumentsView(generics.ListCreateAPIView):
         project_slug = self.kwargs.get('project_slug')
         return Document.objects.filter(
             project__slug=project_slug,
-            document_type='marketing'
+            document_type='Marketing Material'
         ).order_by('title')
     
     def perform_create(self, serializer):
         project_slug = self.kwargs.get('project_slug')
         project = get_object_or_404(Project, slug=project_slug)
-        serializer.save(project=project, document_type='marketing')
+        serializer.save(project=project, document_type='Marketing Material')
 
 class ProjectLegalDocumentsView(generics.ListCreateAPIView):
     serializer_class = DocumentSerializer
@@ -752,13 +752,13 @@ class ProjectLegalDocumentsView(generics.ListCreateAPIView):
         project_slug = self.kwargs.get('project_slug')
         return Document.objects.filter(
             project__slug=project_slug,
-            document_type='legal'
+            document_type='Document'
         ).order_by('title')
     
     def perform_create(self, serializer):
         project_slug = self.kwargs.get('project_slug')
         project = get_object_or_404(Project, slug=project_slug)
-        serializer.save(project=project, document_type='legal')
+        serializer.save(project=project, document_type='Document')
 
 # Detail views for individual items
 class ContactDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -777,7 +777,7 @@ class MarketingDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         project_slug = self.kwargs.get('project_slug')
         return Document.objects.filter(
             project__slug=project_slug,
-            document_type='marketing'
+            document_type='Marketing Material'
         )
 
 class LegalDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -788,7 +788,7 @@ class LegalDocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
         project_slug = self.kwargs.get('project_slug')
         return Document.objects.filter(
             project__slug=project_slug,
-            document_type='legal'
+            document_type='Document'
         )
 
 # Featured Projects View

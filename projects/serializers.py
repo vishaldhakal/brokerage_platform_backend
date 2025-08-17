@@ -267,7 +267,6 @@ class ProjectSerializer(serializers.ModelSerializer):
     site_plan = SitePlanSerializer(read_only=True)
     lots_data = LotSerializer(many=True, read_only=True, source='lots')
     floor_plans_data = FloorPlanSerializer(many=True, read_only=True, source='floor_plans')
-    documents = DocumentSerializer(many=True, read_only=True)
     legal_documents = serializers.SerializerMethodField()
     marketing_documents = serializers.SerializerMethodField()
     contacts = ContactSerializer(many=True, read_only=True)
@@ -275,11 +274,11 @@ class ProjectSerializer(serializers.ModelSerializer):
     amenities = AmenitySerializer(many=True, read_only=True)
     
     def get_legal_documents(self, obj):
-        legal_docs = obj.documents.filter(document_type='Document')
+        legal_docs = obj.documents.filter(document_type='Document').order_by('title')
         return DocumentSerializer(legal_docs, many=True, context=self.context).data
     
     def get_marketing_documents(self, obj):
-        marketing_docs = obj.documents.filter(document_type='Marketing Material')
+        marketing_docs = obj.documents.filter(document_type='Marketing Material').order_by('title')
         return DocumentSerializer(marketing_docs, many=True, context=self.context).data
     
     def to_representation(self, instance):

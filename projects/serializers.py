@@ -80,6 +80,20 @@ class FloorPlanSerializer(serializers.ModelSerializer):
             return obj.plan_file.url
         return None
 
+    def create(self, validated_data):
+        # Drop non-model helper flag if present (default may inject it)
+        validated_data.pop('plan_file_remove', None)
+
+        # Normalize empty numeric fields coming as empty strings
+        for key in ['square_footage', 'bedrooms', 'garage_spaces']:
+            if key in validated_data and (validated_data[key] == '' or validated_data[key] is None):
+                validated_data[key] = None
+        for key in ['bathrooms']:
+            if key in validated_data and (validated_data[key] == '' or validated_data[key] is None):
+                validated_data[key] = None
+
+        return super().create(validated_data)
+
     def update(self, instance, validated_data):
         # Handle explicit file removal
         remove_flag = validated_data.pop('plan_file_remove', False)

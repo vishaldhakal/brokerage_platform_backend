@@ -1,5 +1,6 @@
 
 from rest_framework import generics, filters, status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -479,6 +480,22 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {'error': str(e)}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+class PublicProjectDetailView(generics.RetrieveAPIView):
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+    permission_classes = [AllowAny]
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('city').prefetch_related(
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
+        )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 # Rendering Views
 class RenderingListCreateView(generics.ListCreateAPIView):

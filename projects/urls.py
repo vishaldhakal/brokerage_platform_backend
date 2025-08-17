@@ -15,6 +15,7 @@ urlpatterns = [
     path('projects/', views.ProjectListCreateView.as_view(), name='project-list'),
     path('projects/featured/', views.FeaturedProjectsView.as_view(), name='featured-projects'),
     path('projects/<slug:slug>/', views.ProjectDetailView.as_view(), name='project-detail'),
+    path('public/projects/<slug:slug>/', views.PublicProjectDetailView.as_view(), name='public-project-detail'),
     
     # Project-specific endpoints
     path('projects/<slug:project_slug>/renderings/', views.ProjectRenderingsView.as_view(), name='project-renderings'),

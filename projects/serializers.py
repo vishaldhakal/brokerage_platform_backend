@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.db import transaction
+# from django.db import transaction
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan,
@@ -284,6 +284,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     legal_documents = serializers.SerializerMethodField()
     marketing_documents = serializers.SerializerMethodField()
     contacts = ContactSerializer(many=True, read_only=True)
+    inquiries = serializers.SerializerMethodField()
     features_finishes = FeatureFinishSerializer(many=True, read_only=True)
     amenities = AmenitySerializer(many=True, read_only=True)
     
@@ -307,6 +308,10 @@ class ProjectSerializer(serializers.ModelSerializer):
             print(f"Debug: Error getting contacts for {instance.name}: {e}")
             data['contacts'] = []
         return data
+
+    def get_inquiries(self, obj):
+        inquiries_qs = obj.inquiries.all().order_by('-created_at')
+        return ProjectInquirySerializer(inquiries_qs, many=True, context=self.context).data
     
     # Related object serializers
     city = CitySerializer(read_only=True)
@@ -437,7 +442,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         if 'city_id' in validated_data:
             validated_data['city_id'] = int(validated_data['city_id'])
         uploaded_features_finishes = validated_data.pop('uploaded_features_finishes', [])
-        existing_features_finishes = validated_data.pop('existing_features_finishes', [])
+        # client may send list to keep; not used on create
+        validated_data.pop('existing_features_finishes', [])
 
         # Create project
         project = Project.objects.create(**validated_data)
@@ -456,7 +462,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             try:
                 # Handle file uploads - extract files from the request
                 plan_file = floor_plan_data.pop('plan_file', None)
-                existing_plan_file = floor_plan_data.pop('existing_plan_file', None)
+                floor_plan_data.pop('existing_plan_file', None)
                 
                 # Convert string numbers to appropriate types (only if not empty)
                 if floor_plan_data.get('square_footage') and floor_plan_data['square_footage'].strip():

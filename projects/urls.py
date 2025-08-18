@@ -59,6 +59,10 @@ urlpatterns = [
     # Project-specific lot endpoints
     path('projects/<slug:project_slug>/lots/<int:id>/', views.LotDetailView.as_view(), name='project-lot-detail'),
     
+    # Project-specific inquiries
+    path('projects/<slug:project_slug>/inquiries/', views.ProjectInquiriesView.as_view(), name='project-inquiries'),
+    path('projects/<slug:project_slug>/inquiries/<int:pk>/', views.ProjectInquiryDetailProjectScopedView.as_view(), name='project-inquiry-detail-project'),
+    
     # Floor Plan endpoints
     path('floor-plans/', views.FloorPlanListCreateView.as_view(), name='floor-plan-list'),
     path('floor-plans/<int:pk>/', views.FloorPlanDetailView.as_view(), name='floor-plan-detail'),

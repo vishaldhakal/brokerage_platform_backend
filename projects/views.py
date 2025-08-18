@@ -66,7 +66,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         queryset = super().get_queryset()
         # Add prefetch_related for better performance
         return queryset.select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes', 'inquiries'
         )
     
     def get_serializer_context(self):
@@ -275,7 +275,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes', 'inquiries'
         )
     
     def get_serializer_context(self):
@@ -491,7 +491,7 @@ class PublicProjectDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes'
+            'renderings', 'lots', 'floor_plans', 'documents', 'contacts', 'features_finishes', 'inquiries'
         )
 
     def get_serializer_context(self):
@@ -817,7 +817,7 @@ class FeaturedProjectsView(generics.ListAPIView):
     
     def get_queryset(self):
         return super().get_queryset().select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'contacts'
+            'renderings', 'lots', 'floor_plans', 'contacts', 'inquiries'
         )
 
 # City Projects View
@@ -830,7 +830,7 @@ class CityProjectsView(generics.ListAPIView):
             city__slug=city_slug, 
             is_active=True
         ).select_related('city').prefetch_related(
-            'renderings', 'lots', 'floor_plans', 'contacts'
+            'renderings', 'lots', 'floor_plans', 'contacts', 'inquiries'
         )
 
 # Amenity Views
@@ -856,3 +856,25 @@ class ProjectInquiryListCreateView(generics.ListCreateAPIView):
 class ProjectInquiryDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = ProjectInquires.objects.all()
     serializer_class = ProjectInquirySerializer
+
+
+# Project-scoped Inquiry Views
+class ProjectInquiriesView(generics.ListCreateAPIView):
+    serializer_class = ProjectInquirySerializer
+
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return ProjectInquires.objects.filter(project__slug=project_slug).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        project_slug = self.kwargs.get('project_slug')
+        project = get_object_or_404(Project, slug=project_slug)
+        serializer.save(project=project)
+
+
+class ProjectInquiryDetailProjectScopedView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProjectInquirySerializer
+
+    def get_queryset(self):
+        project_slug = self.kwargs.get('project_slug')
+        return ProjectInquires.objects.filter(project__slug=project_slug)

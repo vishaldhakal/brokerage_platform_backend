@@ -4,7 +4,7 @@ from tinymce.widgets import TinyMCE
 from django.db import models
 from .models import (   
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Contact, Amenity, FeatureFinish
+    Document, Project, Contact, Amenity, FeatureFinish, ProjectInquires
 )
 
 # Inline Admin Classes
@@ -187,3 +187,5 @@ admin.site.register(FeatureFinish)
 admin.site.site_header = "Brokerage Platform Administration"
 admin.site.site_title = "Brokerage Admin"
 admin.site.index_title = "Welcome to Brokerage Platform Administration"
+
+admin.site.register(ProjectInquires)

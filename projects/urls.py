@@ -70,4 +70,8 @@ urlpatterns = [
     # Amenity endpoints
     path('amenities/', views.AmenityListCreateView.as_view(), name='amenity-list'),
     path('amenities/<int:pk>/', views.AmenityDetailView.as_view(), name='amenity-detail'),
+
+    # Project Inquiry endpoints
+    path('inquiries/', views.ProjectInquiryListCreateView.as_view(), name='project-inquiry-list'),
+    path('inquiries/<int:pk>/', views.ProjectInquiryDetailView.as_view(), name='project-inquiry-detail'),
 ]

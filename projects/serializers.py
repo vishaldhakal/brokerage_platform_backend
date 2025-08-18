@@ -3,7 +3,7 @@ from django.db import transaction
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan,
-    Document, Project, Contact, Amenity, FeatureFinish
+    Document, Project, Contact, Amenity, FeatureFinish, ProjectInquires
 )
 
 class StateSerializer(serializers.ModelSerializer):
@@ -746,3 +746,9 @@ class LotListSerializer(serializers.ModelSerializer):
     
     def get_floor_plans_count(self, obj):
         return obj.floor_plans.count()
+
+
+class ProjectInquirySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectInquires
+        fields = '__all__'

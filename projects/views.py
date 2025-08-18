@@ -7,16 +7,18 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 import json
 from .models import (
     State, City, Rendering, SitePlan, Lot, FloorPlan, 
-    Document, Project, Amenity, Contact, FeatureFinish
+    Document, Project, Amenity, Contact, FeatureFinish, ProjectInquires
 )
 from .serializers import (
     StateSerializer, CitySerializer,
     RenderingSerializer, SitePlanSerializer, LotSerializer, FloorPlanSerializer,
     DocumentSerializer, ProjectSerializer, AmenitySerializer, ContactSerializer,
     ProjectListSerializer, RenderingListSerializer, FloorPlanListSerializer,
-    FeatureFinishSerializer
+    FeatureFinishSerializer, ProjectInquirySerializer
 )
 from django.shortcuts import get_object_or_404
+
+
 
 # State Views
 class StateListCreateView(generics.ListCreateAPIView):
@@ -844,3 +846,13 @@ class AmenityListCreateView(generics.ListCreateAPIView):
 class AmenityDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Amenity.objects.all()
     serializer_class = AmenitySerializer
+
+
+# Project Inquiry Views
+class ProjectInquiryListCreateView(generics.ListCreateAPIView):
+    queryset = ProjectInquires.objects.all()
+    serializer_class = ProjectInquirySerializer
+
+class ProjectInquiryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ProjectInquires.objects.all()
+    serializer_class = ProjectInquirySerializer

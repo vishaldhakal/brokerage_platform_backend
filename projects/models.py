@@ -293,3 +293,20 @@ class Contact(models.Model):
     
     def __str__(self):
         return f"{self.name} - {self.project.name}"
+    
+
+class ProjectInquires(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='inquiries', blank=True, null=True)
+    name = models.CharField(max_length=200, blank=True)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = "Project Inquiries"
+    
+    def __str__(self):
+        return f"{self.name} - {self.project.name}"
